@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">Nepal News</string>
+    <string name="app_name_devanagari">नेपाल समाचार</string>
+    <string name="breaking_news_label">ताजा अपडेट</string>
+    <string name="read_original">मूल स्रोतमा जानुहोस्</string>
+    <string name="bookmark_saved">समाचार सुरक्षित गरियो</string>
+    <string name="bookmark_removed">बुकमार्क हटाइयो</string>
+    <string name="share_news">समाचार सेयर गर्नुहोस्</string>
+    <string name="search_hint">समाचार वा शीर्षक खोज्नुहोस्…</string>
+    <string name="empty_feed_title">कुनै समाचार भेटिएन</string>
+    <string name="empty_feed_desc">इन्टरनेट जाँच गर्नुहोस् वा अर्को वर्ग रोज्नुहोस्</string>
+    <string name="empty_bookmarks_title">कुनै बुकमार्क छैन</string>
+    <string name="empty_bookmarks_desc">पछि पढ्नका लागि समाचारहरू बुकमार्क गर्नुहोस्</string>
+    <string name="refresh_feed">ताजा गर्नुहोस्</string>
+</resources>

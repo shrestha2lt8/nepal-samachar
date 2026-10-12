@@ -1,0 +1,6 @@
+{
+  "name": "Nepal News",
+  "description": "Categorical Nepali news aggregator pulling live stories from 20 top Nepali news portals including Onlinekhabar, Setopati, Ratopati, Kantipur, Bizmandu, TechPana, NepalPress, NepalSays, and more.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
