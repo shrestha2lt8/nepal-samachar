@@ -47,24 +47,24 @@ enum class NewsSource(
         idNum = 1,
         displayName = "रातोपाटी",
         enName = "Ratopati",
-        homeUrl = "https://ratopati.com",
-        feedUrl = "https://ratopati.com/feed",
+        homeUrl = "https://www.ratopati.com",
+        feedUrl = "https://www.ratopati.com/feed",
         brandColor = ColorRatopati
     ),
     SETOPATI(
         idNum = 2,
         displayName = "सेतोपाटी",
         enName = "Setopati",
-        homeUrl = "https://setopati.com",
-        feedUrl = "https://setopati.com/feed",
+        homeUrl = "https://www.setopati.com",
+        feedUrl = "https://www.setopati.com/feed",
         brandColor = ColorSetopati
     ),
     ONLINEKHABAR(
         idNum = 3,
         displayName = "अनलाइनखबर",
         enName = "Onlinekhabar",
-        homeUrl = "https://onlinekhabar.com",
-        feedUrl = "https://onlinekhabar.com/feed",
+        homeUrl = "https://www.onlinekhabar.com",
+        feedUrl = "https://www.onlinekhabar.com/feed",
         brandColor = ColorOnlineKhabar
     ),
     BAARAHKHARI(
@@ -80,7 +80,7 @@ enum class NewsSource(
         displayName = "नागरिक न्युज",
         enName = "Nagarik News",
         homeUrl = "https://nagariknetwork.com",
-        feedUrl = "https://nagariknetwork.com/feed",
+        feedUrl = "https://nagariknetwork.com/feed/",
         brandColor = ColorNagarik
     ),
 
@@ -277,5 +277,6 @@ data class NewsArticle(
     val publishedTimeStr: String,
     val publishedEpoch: Long,
     val isBreaking: Boolean = false,
-    val isBookmarked: Boolean = false
+    val isBookmarked: Boolean = false,
+    val isRead: Boolean = false
 )

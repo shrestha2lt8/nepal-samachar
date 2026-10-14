@@ -19,12 +19,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Feed
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Feed
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Newspaper
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -45,7 +46,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -53,9 +56,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.outlined.Info
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.MainTab
+import com.example.ui.components.AboutAppDialog
 import com.example.ui.NewsViewModel
+import com.example.ui.components.MarketDetailDialog
+import com.example.ui.components.SelectedMarketTab
 import com.example.ui.screens.BookmarksScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.ReaderScreen
@@ -100,6 +107,12 @@ fun NepalNewsApp(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var activeMarketTab by remember { mutableStateOf<SelectedMarketTab?>(null) }
+    var showAboutDialog by remember { mutableStateOf(false) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val activity = context as? android.app.Activity
+    val interstitialAdManager = remember { com.example.util.InterstitialAdManager(context) }
 
     // Toast notice handler
     LaunchedEffect(uiState.userNotice) {
@@ -107,6 +120,22 @@ fun NepalNewsApp(
             snackbarHostState.showSnackbar(msg)
             viewModel.clearNotice()
         }
+    }
+
+    // Modal dialog for detailed market rates (Forex, Gold/Silver, NEPSE)
+    activeMarketTab?.let { tab ->
+        MarketDetailDialog(
+            initialTab = tab,
+            markets = uiState.markets,
+            onDismiss = { activeMarketTab = null }
+        )
+    }
+
+    // Modal dialog for About App Store showcase
+    if (showAboutDialog) {
+        AboutAppDialog(
+            onDismiss = { showAboutDialog = false }
+        )
     }
 
     // If an article is currently open in Clean Reader Mode, display it full screen
@@ -127,42 +156,61 @@ fun NepalNewsApp(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            color = NepalCrimson,
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Newspaper,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(vertical = 1.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                color = NepalCrimson,
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.size(22.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Newspaper,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
                             }
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "नेपाल समाचार",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp,
+                                    fontSize = 15.sp,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                             )
-                            Text(
-                                text = "Nepal News Aggregator",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 10.sp
-                                )
-                            )
                         }
+                        // Live Bikram Sambat Date & Auto-Ticking Time
+                        Text(
+                            text = "${uiState.nepaliDate} • ${uiState.currentTime}",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Normal
+                            ),
+                            maxLines = 1,
+                            modifier = Modifier.testTag("header_nepali_date_time")
+                        )
                     }
                 },
                 actions = {
+                    // Manual Refresh Action Button
+                    IconButton(
+                        onClick = { viewModel.refreshNews() },
+                        modifier = Modifier.testTag("top_refresh_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "ताजा गर्नुहोस्",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
                     // Theme Switcher Button
                     IconButton(
                         onClick = { viewModel.toggleTheme() },
@@ -187,6 +235,18 @@ fun NepalNewsApp(
                             )
                         }
                     }
+
+                    // About App Information Button
+                    IconButton(
+                        onClick = { showAboutDialog = true },
+                        modifier = Modifier.testTag("top_about_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Info,
+                            contentDescription = "एप जानकारी",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
@@ -205,7 +265,7 @@ fun NepalNewsApp(
                     onClick = { viewModel.setActiveTab(MainTab.FEED) },
                     icon = {
                         Icon(
-                            imageVector = Icons.Default.Feed,
+                            imageVector = Icons.AutoMirrored.Filled.Feed,
                             contentDescription = "समाचार"
                         )
                     },
@@ -297,10 +357,16 @@ fun NepalNewsApp(
                     isRefreshing = uiState.isRefreshing,
                     isOnline = uiState.isOnline,
                     cachedCount = uiState.cachedCount,
+                    markets = uiState.markets,
                     onCategorySelected = { cat -> viewModel.selectCategory(cat) },
                     onSourceSelected = { src -> viewModel.selectSource(src) },
-                    onArticleClick = { art -> viewModel.openReader(art) },
+                    onArticleClick = { art ->
+                        interstitialAdManager.onArticleClicked(activity) {
+                            viewModel.openReader(art)
+                        }
+                    },
                     onBookmarkClick = { art -> viewModel.toggleBookmark(art) },
+                    onMarketClick = { tab -> activeMarketTab = tab },
                     onRefresh = { viewModel.refreshNews() }
                 )
 
@@ -308,13 +374,21 @@ fun NepalNewsApp(
                     searchQuery = uiState.searchQuery,
                     onSearchQueryChange = { q -> viewModel.setSearchQuery(q) },
                     searchResults = uiState.articles,
-                    onArticleClick = { art -> viewModel.openReader(art) },
+                    onArticleClick = { art ->
+                        interstitialAdManager.onArticleClicked(activity) {
+                            viewModel.openReader(art)
+                        }
+                    },
                     onBookmarkClick = { art -> viewModel.toggleBookmark(art) }
                 )
 
                 MainTab.BOOKMARKS -> BookmarksScreen(
                     bookmarks = uiState.bookmarks,
-                    onArticleClick = { art -> viewModel.openReader(art) },
+                    onArticleClick = { art ->
+                        interstitialAdManager.onArticleClicked(activity) {
+                            viewModel.openReader(art)
+                        }
+                    },
                     onBookmarkClick = { art -> viewModel.toggleBookmark(art) }
                 )
             }

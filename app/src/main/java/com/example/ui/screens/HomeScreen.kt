@@ -22,34 +22,33 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.data.model.FinancialMarketsState
 import com.example.data.model.NewsArticle
 import com.example.data.model.NewsCategory
 import com.example.data.model.NewsSource
 import com.example.ui.components.AdBanner
 import com.example.ui.components.BreakingNewsTicker
-import com.example.ui.components.CategoryFilterBar
-import com.example.ui.components.HeroNewsCard
+import com.example.ui.components.CompactFilterRow
+import com.example.ui.components.MarketsRibbon
 import com.example.ui.components.NewsCard
-import com.example.ui.components.SourceFilterRow
+import com.example.ui.components.SelectedMarketTab
 import com.example.ui.theme.AmberGold
-import com.example.ui.theme.NepalCrimson
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     articles: List<NewsArticle>,
@@ -59,10 +58,12 @@ fun HomeScreen(
     isRefreshing: Boolean,
     isOnline: Boolean,
     cachedCount: Int,
+    markets: FinancialMarketsState,
     onCategorySelected: (NewsCategory) -> Unit,
     onSourceSelected: (NewsSource) -> Unit,
     onArticleClick: (NewsArticle) -> Unit,
     onBookmarkClick: (NewsArticle) -> Unit,
+    onMarketClick: (SelectedMarketTab) -> Unit,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -71,7 +72,7 @@ fun HomeScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Offline Status Banner
+        // Offline Status Banner (Compact)
         AnimatedVisibility(
             visible = !isOnline,
             enter = expandVertically(),
@@ -80,47 +81,39 @@ fun HomeScreen(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .padding(horizontal = 12.dp, vertical = 2.dp)
                     .testTag("offline_status_banner"),
-                shape = RoundedCornerShape(10.dp),
-                color = AmberGold.copy(alpha = 0.14f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, AmberGold.copy(alpha = 0.4f))
+                shape = RoundedCornerShape(8.dp),
+                color = AmberGold.copy(alpha = 0.12f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, AmberGold.copy(alpha = 0.35f))
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Default.CloudOff,
                         contentDescription = "अफलाइन",
                         tint = AmberGold,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            text = "अफलाइन मोड सक्रिय छ",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "अफलाइन: $cachedCount वटा सुरक्षित समाचार उपलब्ध छन्",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Medium
                         )
-                        Text(
-                            text = "इन्टरनेट छैन तर $cachedCount वटा सुरक्षित समाचारहरू अफलाइन पढ्न उपलब्ध छन्।",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        )
-                    }
+                    )
                 }
             }
         }
 
-        // Ticker banner
+        // LINE 1: Dedicated Breaking News Ticker (Separate Line)
         if (breakingNews.isNotEmpty()) {
-            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+            Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)) {
                 BreakingNewsTicker(
                     breakingNews = breakingNews,
                     onItemClick = onArticleClick
@@ -128,135 +121,101 @@ fun HomeScreen(
             }
         }
 
-        // Category filter chips
-        CategoryFilterBar(
+        // LINE 2: Dedicated Financial Markets Ribbon (Separate Line: NEPSE, Gold, NRB Forex, Sync Button)
+        MarketsRibbon(
+            markets = markets,
+            isRefreshing = isRefreshing,
+            onMarketClick = onMarketClick,
+            onRefreshClick = onRefresh,
+            modifier = Modifier.testTag("markets_ribbon")
+        )
+
+        // LINE 3: Compact Filter Row (Source Dropdown + Category Micro-Chips)
+        CompactFilterRow(
             selectedCategory = selectedCategory,
-            onCategorySelected = onCategorySelected
-        )
-
-        // Source filter chips
-        SourceFilterRow(
             selectedSource = selectedSource,
-            onSourceSelected = onSourceSelected
+            onCategorySelected = onCategorySelected,
+            onSourceSelected = onSourceSelected,
+            modifier = Modifier.testTag("compact_filter_row")
         )
 
-        // Refresh indicator or feed count
-        Row(
+        // Feed Container with Pull to Refresh
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .testTag("pull_to_refresh_box")
         ) {
-            Text(
-                text = "${selectedCategory.displayName} • ${selectedSource.displayName}",
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            )
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (isRefreshing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
-                        color = NepalCrimson
-                    )
-                    Spacer(modifier = Modifier.size(8.dp))
-                }
-                IconButton(
-                    onClick = onRefresh,
+            if (articles.isEmpty()) {
+                // Empty State
+                Box(
                     modifier = Modifier
-                        .size(32.dp)
-                        .testTag("refresh_button")
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "ताजा गर्नुहोस्",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-        }
-
-        if (articles.isEmpty()) {
-            // Empty State
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "यस वर्गमा कुनै समाचार भेटिएन",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "कृपया अर्को समाचार स्रोत वा वर्ग छान्नुहोस् वा ताजा गर्नुहोस्।",
-                        style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = {
-                            onCategorySelected(NewsCategory.LATEST)
-                            onSourceSelected(NewsSource.ALL)
-                            onRefresh()
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.testTag("reset_filters_btn")
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        Text("सबै समाचार हेर्नुहोस्")
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "यस वर्गमा कुनै समाचार भेटिएन",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "कृपया स्वाइप गरेर ताजा गर्नुहोस् वा अर्को समाचार स्रोत छान्नुहोस्।",
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                onCategorySelected(NewsCategory.LATEST)
+                                onSourceSelected(NewsSource.ALL)
+                                onRefresh()
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.testTag("reset_filters_btn")
+                        ) {
+                            Text("सबै समाचार हेर्नुहोस्")
+                        }
                     }
                 }
-            }
-        } else {
-            // News Feed List with Inline Google Ads
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .testTag("news_feed_list"),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                itemsIndexed(
-                    items = articles,
-                    key = { _, article -> article.id }
-                ) { index, article ->
-                    if (index == 0 && (selectedCategory == NewsCategory.LATEST || selectedCategory == NewsCategory.POLITICS)) {
-                        HeroNewsCard(
-                            article = article,
-                            onCardClick = { onArticleClick(article) },
-                            onBookmarkClick = { onBookmarkClick(article) }
-                        )
-                    } else {
+            } else {
+                // Spacious News Feed List
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag("news_feed_list"),
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    itemsIndexed(
+                        items = articles,
+                        key = { _, article -> article.id }
+                    ) { index, article ->
                         NewsCard(
                             article = article,
                             onCardClick = { onArticleClick(article) },
                             onBookmarkClick = { onBookmarkClick(article) }
                         )
-                    }
 
-                    // Sponsored Google AdMob Banner after article 2
-                    if (index == 2) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        AdBanner(modifier = Modifier.padding(vertical = 4.dp))
-                        Spacer(modifier = Modifier.height(4.dp))
+                        // Sponsored Ad Banner after article 3
+                        if (index == 3) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            AdBanner(modifier = Modifier.padding(vertical = 4.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
                     }
                 }
             }

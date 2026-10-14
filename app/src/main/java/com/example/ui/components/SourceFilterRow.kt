@@ -40,7 +40,8 @@ fun SourceFilterRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        NewsSource.entries.forEach { source ->
+        val displaySources = listOf(NewsSource.ALL) + com.example.config.NewsSourcesConfig.getEnabledSources()
+        displaySources.forEach { source ->
             val isSelected = source == selectedSource
             val labelText = if (source == NewsSource.ALL) {
                 source.displayName

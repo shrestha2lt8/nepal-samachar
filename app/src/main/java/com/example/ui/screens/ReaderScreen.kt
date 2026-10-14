@@ -75,6 +75,23 @@ fun ReaderScreen(
 
     val context = LocalContext.current
     var fontSizeMultiplier by remember { mutableIntStateOf(1) } // 0: Normal, 1: Large, 2: Extra Large
+    var liveSourceImage by remember(article.id) {
+        androidx.compose.runtime.mutableStateOf(article.imageUrl?.takeIf { it.startsWith("http") })
+    }
+
+    androidx.compose.runtime.LaunchedEffect(article.id, article.originalUrl) {
+        if (liveSourceImage.isNullOrBlank() && isOnline && article.originalUrl.startsWith("http")) {
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            val extracted = com.example.data.remote.ArticleImageExtractor.extractImageFromUrl(client, article.originalUrl)
+            if (!extracted.isNullOrBlank()) {
+                liveSourceImage = extracted
+            }
+        }
+    }
+
     val bodyFontSize = when (fontSizeMultiplier) {
         0 -> 15.sp
         1 -> 18.sp
@@ -312,23 +329,38 @@ fun ReaderScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Hero Image if present
-            if (!article.imageUrl.isNullOrBlank()) {
+            // Hero Image - Prioritizes real source article image with brand fallback
+            val heroImageUrl = liveSourceImage ?: com.example.util.NewsImageUtil.getEffectiveImageUrl(article)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(230.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(article.source.brandColor.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                // Background branding fallback while loading
+                Text(
+                    text = article.source.displayName,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = article.source.brandColor.copy(alpha = 0.5f)
+                    )
+                )
+
                 AsyncImage(
                     model = ImageRequest.Builder(context)
-                        .data(article.imageUrl)
+                        .data(heroImageUrl)
                         .crossfade(true)
                         .build(),
                     contentDescription = article.title,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(230.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(16.dp)),
                     contentScale = ContentScale.Crop
                 )
-                Spacer(modifier = Modifier.height(18.dp))
             }
+            Spacer(modifier = Modifier.height(18.dp))
 
             // Lead summary / callout box
             if (article.summary.isNotBlank() && article.summary != article.title) {

@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -21,7 +20,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.Newspaper
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -35,8 +33,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -120,7 +116,7 @@ fun NewsCard(
                     }
                 }
 
-                // Time ago
+                // Published Time
                 Text(
                     text = article.publishedTimeStr,
                     style = MaterialTheme.typography.bodySmall.copy(
@@ -131,7 +127,7 @@ fun NewsCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Body: Title + Summary & Optional Thumbnail
+            // Body: Title + Summary & 86dp Thumbnail
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -161,18 +157,32 @@ fun NewsCard(
                     }
                 }
 
-                // Thumbnail if available
-                article.imageUrl?.let { imgUrl ->
+                // Thumbnail - Always rendered with reliable fallback
+                val displayImageUrl = com.example.util.NewsImageUtil.getEffectiveImageUrl(article)
+                Box(
+                    modifier = Modifier
+                        .size(92.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(article.source.brandColor.copy(alpha = 0.10f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = article.source.displayName.take(1),
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = article.source.brandColor.copy(alpha = 0.5f)
+                        )
+                    )
+
                     AsyncImage(
                         model = ImageRequest.Builder(context)
-                            .data(imgUrl)
+                            .data(displayImageUrl)
                             .crossfade(true)
                             .build(),
                         contentDescription = article.title,
                         modifier = Modifier
-                            .size(86.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                            .size(92.dp)
+                            .clip(RoundedCornerShape(12.dp)),
                         contentScale = ContentScale.Crop
                     )
                 }
@@ -180,13 +190,12 @@ fun NewsCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Actions row: Redirect to main site ("more info") + Bookmark + Share
+            // Actions: Redirect to original source button + Share + Bookmark
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // User requirement: "redirect user to main site when the user clicks in more info"
                 FilledTonalButton(
                     onClick = {
                         try {
@@ -241,203 +250,6 @@ fun NewsCard(
                             tint = if (article.isBookmarked) NepalCrimson else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun HeroNewsCard(
-    article: NewsArticle,
-    onCardClick: () -> Unit,
-    onBookmarkClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("hero_news_card_${article.id}")
-            .clickable(onClick = onCardClick),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column {
-            // Hero Image with Overlaid Gradient and Badges
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                if (!article.imageUrl.isNullOrBlank()) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(article.imageUrl)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = article.title,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Newspaper,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                            modifier = Modifier.size(64.dp)
-                        )
-                    }
-                }
-
-                // Dark bottom gradient for text contrast
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)),
-                                startY = 100f
-                            )
-                        )
-                )
-
-                // Top badges row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        color = NepalCrimson,
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = "मुख्य समाचार",
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
-                        )
-                    }
-
-                    Surface(
-                        color = Color.Black.copy(alpha = 0.65f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = article.source.displayName,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold)
-                        )
-                    }
-                }
-
-                // Bottom time badge on image
-                Text(
-                    text = article.publishedTimeStr,
-                    color = Color.White.copy(alpha = 0.9f),
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(12.dp)
-                )
-            }
-
-            // Hero Details
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = article.title,
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        lineHeight = 26.sp
-                    ),
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = article.summary,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 22.sp
-                    ),
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Bottom actions
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    FilledTonalButton(
-                        onClick = {
-                            try {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(article.originalUrl))
-                                context.startActivity(intent)
-                            } catch (_: Exception) {}
-                        },
-                        modifier = Modifier.testTag("hero_open_source_btn_${article.id}"),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "${article.source.displayName}मा पढ्नुहोस्",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                        )
-                    }
-
-                    Row {
-                        IconButton(
-                            onClick = {
-                                val sendIntent = Intent().apply {
-                                    action = Intent.ACTION_SEND
-                                    putExtra(Intent.EXTRA_TEXT, "${article.title}\n${article.originalUrl}\n- नेपाल समाचार एपबाट")
-                                    type = "text/plain"
-                                }
-                                context.startActivity(Intent.createChooser(sendIntent, "समाचार सेयर गर्नुहोस्"))
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = "Share",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        IconButton(
-                            onClick = onBookmarkClick,
-                            modifier = Modifier.testTag("hero_bookmark_btn_${article.id}")
-                        ) {
-                            Icon(
-                                imageVector = if (article.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                contentDescription = "Bookmark",
-                                tint = if (article.isBookmarked) NepalCrimson else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
                     }
                 }
             }

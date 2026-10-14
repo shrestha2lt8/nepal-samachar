@@ -25,8 +25,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -60,7 +58,7 @@ fun AdBanner(
                 .padding(vertical = 8.dp, horizontal = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Ad / Sponsored Label required by Google Play & AdMob policies
+            // Sponsored Label
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -94,7 +92,7 @@ fun AdBanner(
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = "Google AdMob",
+                    text = "नेपाल समाचार साझेदार",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontSize = 9.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
@@ -102,7 +100,6 @@ fun AdBanner(
                 )
             }
 
-            // Real Google Mobile Ads View
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -112,31 +109,32 @@ fun AdBanner(
                 AndroidView(
                     modifier = Modifier.fillMaxWidth(),
                     factory = { context ->
-                        AdView(context).apply {
-                            try {
-                                setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
-                            } catch (_: Exception) {}
-                            setAdSize(AdSize.BANNER)
-                            this.adUnitId = adUnitId
-                            adListener = object : AdListener() {
-                                override fun onAdLoaded() {
-                                    isAdLoaded = true
-                                    adLoadFailed = false
-                                }
+                        try {
+                            AdView(context).apply {
+                                setAdSize(AdSize.BANNER)
+                                this.adUnitId = adUnitId
+                                adListener = object : AdListener() {
+                                    override fun onAdLoaded() {
+                                        isAdLoaded = true
+                                        adLoadFailed = false
+                                    }
 
-                                override fun onAdFailedToLoad(error: LoadAdError) {
-                                    isAdLoaded = false
-                                    adLoadFailed = true
+                                    override fun onAdFailedToLoad(error: LoadAdError) {
+                                        isAdLoaded = false
+                                        adLoadFailed = true
+                                    }
                                 }
+                                val request = AdRequest.Builder().build()
+                                loadAd(request)
                             }
-                            val request = AdRequest.Builder().build()
-                            loadAd(request)
+                        } catch (_: Throwable) {
+                            adLoadFailed = true
+                            android.view.View(context)
                         }
                     }
                 )
 
-                // Placeholder preview while ad loads or in offline test environment
-                if (!isAdLoaded && adLoadFailed) {
+                if (!isAdLoaded) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -148,7 +146,7 @@ fun AdBanner(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "नेपाल समाचार प्रायोजित सामग्री (Google Ads Test Unit)",
+                            text = "नेपाल समाचार प्रायोजित सामग्री",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

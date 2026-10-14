@@ -21,7 +21,7 @@ data class BookmarkEntity(
     val publishedEpoch: Long,
     val savedAt: Long = System.currentTimeMillis()
 ) {
-    fun toNewsArticle(): NewsArticle {
+    fun toNewsArticle(isRead: Boolean = false): NewsArticle {
         return NewsArticle(
             id = id,
             title = title,
@@ -34,7 +34,8 @@ data class BookmarkEntity(
             publishedTimeStr = publishedTimeStr,
             publishedEpoch = publishedEpoch,
             isBreaking = false,
-            isBookmarked = true
+            isBookmarked = true,
+            isRead = isRead
         )
     }
 

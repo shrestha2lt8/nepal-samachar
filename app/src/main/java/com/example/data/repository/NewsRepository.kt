@@ -1,5 +1,6 @@
 package com.example.data.repository
 
+import android.util.Log
 import com.example.data.local.BookmarkDao
 import com.example.data.local.BookmarkEntity
 import com.example.data.local.CachedArticleDao
@@ -28,7 +29,10 @@ class NewsRepository(
 
     init {
         CoroutineScope(Dispatchers.IO).launch {
-            // Check if local cache has items, if empty pre-populate with rich seed news
+            // Prune any news older than 15 days on startup
+            pruneOldNews()
+
+            // Check if local cache has items, if empty pre-populate with seed news
             val existing = cachedArticleDao.getAllCachedArticles().firstOrNull()
             if (existing.isNullOrEmpty()) {
                 val seedEntities = remoteSource.getSeedArticles().map {
@@ -58,17 +62,31 @@ class NewsRepository(
             entities.map { it.toNewsArticle() }
         }
 
-    suspend fun refreshNews(): Result<Unit> = withContext(Dispatchers.IO) {
+    // Auto-prune news older than 15 days (15 * 24 * 60 * 60 * 1000 ms)
+    suspend fun pruneOldNews(): Int = withContext(Dispatchers.IO) {
+        val fifteenDaysAgo = System.currentTimeMillis() - (15L * 24L * 60L * 60L * 1000L)
+        val deletedCount = cachedArticleDao.pruneArticlesOlderThan(fifteenDaysAgo)
+        if (deletedCount > 0) {
+            Log.d("NewsRepository", "Auto-pruned $deletedCount articles older than 15 days")
+        }
+        deletedCount
+    }
+
+    suspend fun refreshNews(): Result<Int> = withContext(Dispatchers.IO) {
         _isRefreshing.value = true
         try {
+            // Auto delete news older than 15 days before updating
+            pruneOldNews()
+
             val freshArticles = remoteSource.fetchAllSources()
             if (freshArticles.isNotEmpty()) {
                 val entities = freshArticles.map { CachedArticleEntity.fromNewsArticle(it) }
                 cachedArticleDao.insertArticles(entities)
+                Log.d("NewsRepository", "Refreshed and stored ${entities.size} live articles")
             }
-            Result.success(Unit)
+            Result.success(freshArticles.size)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w("NewsRepository", "Refresh error: ${e.message}")
             Result.failure(e)
         } finally {
             _isRefreshing.value = false
@@ -86,5 +104,12 @@ class NewsRepository(
 
     suspend fun removeBookmark(id: String) = withContext(Dispatchers.IO) {
         bookmarkDao.deleteBookmarkById(id)
+    }
+
+    suspend fun updateArticleImage(id: String, imageUrl: String) = withContext(Dispatchers.IO) {
+        if (imageUrl.isNotBlank()) {
+            cachedArticleDao.updateImageUrl(id, imageUrl)
+            bookmarkDao.updateImageUrl(id, imageUrl)
+        }
     }
 }

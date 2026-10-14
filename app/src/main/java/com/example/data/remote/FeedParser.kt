@@ -1,10 +1,10 @@
 package com.example.data.remote
 
-import android.util.Xml
 import com.example.data.model.NewsArticle
 import com.example.data.model.NewsCategory
 import com.example.data.model.NewsSource
 import org.xmlpull.v1.XmlPullParser
+import org.xmlpull.v1.XmlPullParserFactory
 import java.io.StringReader
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -17,8 +17,9 @@ object FeedParser {
     fun parseRss(xmlContent: String, source: NewsSource): List<NewsArticle> {
         val articles = mutableListOf<NewsArticle>()
         try {
-            val parser = Xml.newPullParser()
-            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+            val factory = XmlPullParserFactory.newInstance()
+            factory.isNamespaceAware = false
+            val parser = factory.newPullParser()
             parser.setInput(StringReader(xmlContent))
 
             var eventType = parser.eventType
@@ -45,44 +46,62 @@ object FeedParser {
                             currentCategoryStr = ""
                         } else if (inItem) {
                             when (tagName) {
-                                "title" -> currentTitle = parser.nextText()
+                                "title" -> {
+                                    currentTitle = getElementText(parser)
+                                }
                                 "link" -> {
                                     val href = parser.getAttributeValue(null, "href")
-                                    currentLink = if (!href.isNullOrBlank()) href else parser.nextText()
+                                    val text = getElementText(parser)
+                                    currentLink = if (!href.isNullOrBlank()) href else text
                                 }
                                 "description", "summary" -> {
-                                    val rawDesc = parser.nextText()
-                                    currentDescription = stripHtml(rawDesc)
+                                    val rawDesc = getElementText(parser)
                                     if (currentImageUrl == null) {
                                         currentImageUrl = extractImageFromHtml(rawDesc)
                                     }
+                                    currentDescription = stripHtml(rawDesc)
                                 }
-                                "content:encoded", "content" -> {
-                                    val rawContent = parser.nextText()
-                                    if (currentDescription.isBlank()) {
-                                        currentDescription = stripHtml(rawContent)
-                                    }
+                                "content:encoded", "encoded", "content" -> {
+                                    val rawContent = getElementText(parser)
                                     if (currentImageUrl == null) {
                                         currentImageUrl = extractImageFromHtml(rawContent)
                                     }
+                                    val cleanContent = stripHtml(rawContent)
+                                    if (cleanContent.isNotBlank() && cleanContent.length > currentDescription.length) {
+                                        currentDescription = cleanContent
+                                    }
                                 }
                                 "pubdate", "published", "updated" -> {
-                                    currentPubDate = parser.nextText()
+                                    currentPubDate = getElementText(parser)
                                 }
                                 "category" -> {
-                                    val cat = parser.nextText()
+                                    val cat = getElementText(parser)
                                     if (cat.isNotBlank()) currentCategoryStr = cat
                                 }
-                                "enclosure" -> {
-                                    val type = parser.getAttributeValue(null, "type") ?: ""
-                                    val url = parser.getAttributeValue(null, "url")
-                                    if (url != null && (type.startsWith("image") || url.endsWith(".jpg") || url.endsWith(".png") || url.endsWith(".webp"))) {
+                                "image" -> {
+                                    val imageText = getElementText(parser)
+                                    val url = extractFirstUrl(imageText)
+                                    if (!url.isNullOrBlank() && currentImageUrl == null) {
                                         currentImageUrl = url
                                     }
                                 }
-                                "media:content", "media:thumbnail" -> {
-                                    val url = parser.getAttributeValue(null, "url")
-                                    if (!url.isNullOrBlank()) {
+                                "enclosure" -> {
+                                    val type = extractAttribute(parser, "type") ?: ""
+                                    val url = extractAttribute(parser, "url") ?: extractAttribute(parser, "href") ?: extractAttribute(parser, "src")
+                                    if (url != null && (type.startsWith("image") || url.contains(".jpg", ignoreCase = true) || url.contains(".jpeg", ignoreCase = true) || url.contains(".png", ignoreCase = true) || url.contains(".webp", ignoreCase = true))) {
+                                        if (currentImageUrl == null) currentImageUrl = url
+                                    }
+                                }
+                                "media:content", "media:thumbnail", "thumbnail" -> {
+                                    val url = extractAttribute(parser, "url") ?: extractAttribute(parser, "href") ?: extractAttribute(parser, "src")
+                                    if (!url.isNullOrBlank() && currentImageUrl == null) {
+                                        currentImageUrl = url
+                                    }
+                                }
+                                "wp:featured_image", "featured_image", "thumb" -> {
+                                    val text = getElementText(parser)
+                                    val url = extractFirstUrl(text)
+                                    if (!url.isNullOrBlank() && currentImageUrl == null) {
                                         currentImageUrl = url
                                     }
                                 }
@@ -100,6 +119,10 @@ object FeedParser {
                                 val pubMillis = parsePubDate(currentPubDate)
                                 val timeAgo = formatTimeAgo(pubMillis)
 
+                                val effectiveImage = currentImageUrl?.trim()?.takeIf {
+                                    it.startsWith("http://") || it.startsWith("https://")
+                                }
+
                                 articles.add(
                                     NewsArticle(
                                         id = id,
@@ -108,11 +131,11 @@ object FeedParser {
                                         content = currentDescription,
                                         source = source,
                                         originalUrl = if (cleanUrl.isNotBlank()) cleanUrl else source.homeUrl,
-                                        imageUrl = currentImageUrl,
+                                        imageUrl = effectiveImage,
                                         category = category,
                                         publishedTimeStr = timeAgo,
                                         publishedEpoch = pubMillis,
-                                        isBreaking = articles.isEmpty() // top story can be breaking
+                                        isBreaking = articles.isEmpty()
                                     )
                                 )
                             }
@@ -128,6 +151,20 @@ object FeedParser {
         return articles
     }
 
+    private fun getElementText(parser: XmlPullParser): String {
+        val sb = StringBuilder()
+        var depth = 1
+        while (depth > 0) {
+            when (parser.next()) {
+                XmlPullParser.START_TAG -> depth++
+                XmlPullParser.END_TAG -> depth--
+                XmlPullParser.TEXT, XmlPullParser.CDSECT -> sb.append(parser.text ?: "")
+                XmlPullParser.END_DOCUMENT -> break
+            }
+        }
+        return sb.toString().trim()
+    }
+
     private fun stripHtml(html: String): String {
         return html
             .replace(Regex("<[^>]*>"), " ")
@@ -137,14 +174,46 @@ object FeedParser {
             .replace("&apos;", "'")
             .replace("&lt;", "<")
             .replace("&gt;", ">")
+            .replace("&#8230;", "...")
+            .replace(Regex("&#[0-9]+;"), "")
             .replace(Regex("\\s+"), " ")
             .trim()
+    }
+
+    private fun extractAttribute(parser: XmlPullParser, attrName: String): String? {
+        val direct = parser.getAttributeValue(null, attrName)
+        if (!direct.isNullOrBlank()) return direct.trim()
+        for (i in 0 until parser.attributeCount) {
+            val name = parser.getAttributeName(i) ?: ""
+            if (name.equals(attrName, ignoreCase = true) || name.endsWith(":$attrName", ignoreCase = true)) {
+                val value = parser.getAttributeValue(i)
+                if (!value.isNullOrBlank()) return value.trim()
+            }
+        }
+        return null
+    }
+
+    private fun extractFirstUrl(text: String): String? {
+        val clean = text.replace("<![CDATA[", "").replace("]]>", "").trim()
+        val urlPattern = Pattern.compile("https?://[^\\s\"'<>()]+", Pattern.CASE_INSENSITIVE)
+        val matcher = urlPattern.matcher(clean)
+        return if (matcher.find()) matcher.group(0)?.trim() else null
     }
 
     private fun extractImageFromHtml(html: String): String? {
         val matcher = imgPattern.matcher(html)
         if (matcher.find()) {
-            return matcher.group(1)
+            val url = matcher.group(1)?.trim()
+            if (!url.isNullOrBlank() && (url.startsWith("http://") || url.startsWith("https://"))) {
+                return url
+            }
+        }
+        val dataSrcMatcher = Pattern.compile("data-(?:src|original)\\s*=\\s*['\"]([^'\"]+)['\"]", Pattern.CASE_INSENSITIVE).matcher(html)
+        if (dataSrcMatcher.find()) {
+            val url = dataSrcMatcher.group(1)?.trim()
+            if (!url.isNullOrBlank() && (url.startsWith("http://") || url.startsWith("https://"))) {
+                return url
+            }
         }
         return null
     }

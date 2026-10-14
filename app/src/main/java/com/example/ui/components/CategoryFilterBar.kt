@@ -1,11 +1,10 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
@@ -24,16 +23,13 @@ fun CategoryFilterBar(
     onCategorySelected: (NewsCategory) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val scrollState = rememberScrollState()
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .horizontalScroll(scrollState)
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+    // LazyRow with generous 40dp end padding ensures text & Nepali matras never cut off on the right edge
+    LazyRow(
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(start = 16.dp, end = 40.dp, top = 4.dp, bottom = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        NewsCategory.entries.forEach { category ->
+        items(NewsCategory.entries, key = { it.name }) { category ->
             val isSelected = category == selectedCategory
             FilterChip(
                 selected = isSelected,
@@ -43,7 +39,9 @@ fun CategoryFilterBar(
                         text = category.displayName,
                         style = MaterialTheme.typography.labelMedium.copy(
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                        )
+                        ),
+                        maxLines = 1,
+                        softWrap = false
                     )
                 },
                 modifier = Modifier.testTag("category_chip_${category.name}"),

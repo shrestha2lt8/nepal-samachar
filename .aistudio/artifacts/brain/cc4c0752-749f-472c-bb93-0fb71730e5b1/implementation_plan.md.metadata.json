@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan for Nepal News Aggregator Android app featuring live feed aggregation from major Nepali news outlets (OnlineKhabar, Ratopati, Setopati, Baarahkhari, Kantipur), categorical feeds, breaking news ticker, clean reader mode, Room-based bookmarks, and deep links to original news sources.",
-  "updatedAt":  "2026-10-12T02:19:18.684074747Z",
-  "requestFeedback":  true,
-  "userFacing":  true
+  "summary": "Implementation plan to align store publishing assets with the user's real app screenshot, add AdMob banner ads after every 3 news articles, and implement live Nepali FM radio streaming with a dedicated bottom tab and persistent mini-player.",
+  "updatedAt": "2026-10-14T10:04:55.631663136Z",
+  "requestFeedback": true,
+  "userFacing": true
 }

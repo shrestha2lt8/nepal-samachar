@@ -37,7 +37,25 @@ class NepaliNewsDataSource {
                         val parsed = FeedParser.parseRss(xml, source)
                         if (parsed.isNotEmpty()) {
                             Log.d("NepaliNewsDataSource", "Successfully fetched ${parsed.size} articles from ${source.displayName}")
-                            return@withContext parsed
+                            // For articles that don't have images in RSS (such as Setopati, Baahrakhari),
+                            // pull the real source image directly from the original article webpage
+                            val enriched = coroutineScope {
+                                parsed.map { article ->
+                                    async {
+                                        if (article.imageUrl.isNullOrBlank()) {
+                                            val realImage = ArticleImageExtractor.extractImageFromUrl(client, article.originalUrl)
+                                            if (!realImage.isNullOrBlank()) {
+                                                article.copy(imageUrl = realImage)
+                                            } else {
+                                                article
+                                            }
+                                        } else {
+                                            article
+                                        }
+                                    }
+                                }.awaitAll()
+                            }
+                            return@withContext enriched
                         }
                     }
                 }
@@ -49,31 +67,8 @@ class NepaliNewsDataSource {
     }
 
     suspend fun fetchAllSources(): List<NewsArticle> = withContext(Dispatchers.IO) {
-        // Prioritizing Ratopati, Setopati, Onlinekhabar, Baarahkhari, Nagarik News at the top
-        val prioritizedSources = listOf(
-            NewsSource.RATOPATI,
-            NewsSource.SETOPATI,
-            NewsSource.ONLINEKHABAR,
-            NewsSource.BAARAHKHARI,
-            NewsSource.NAGARIK_NEWS,
-            NewsSource.KANTIPUR,
-            NewsSource.ANNAPURNA_POST,
-            NewsSource.NAYA_PATRIKA,
-            NewsSource.NEPALPRESS,
-            NewsSource.BIZMANDU,
-            NewsSource.TECHPANA,
-            NewsSource.ICT_SAMACHAR,
-            NewsSource.NEPALSAYS,
-            NewsSource.SIRIUS_NEPAL,
-            NewsSource.HAATMA,
-            NewsSource.NEWS_BUREAU,
-            NewsSource.NV_KHABAR,
-            NewsSource.NAGARIK_SEWA,
-            NewsSource.KATHMANDU_BULLETIN,
-            NewsSource.ONLINE_PATRIKA,
-            NewsSource.WE_NEPAL,
-            NewsSource.SATRAN_MEDIA
-        )
+        // Fetch only enabled news sources configured in NewsSourcesConfig.kt
+        val prioritizedSources = com.example.config.NewsSourcesConfig.getEnabledSources()
 
         // Pull feeds concurrently using async
         val fetchedArticles = coroutineScope {
@@ -82,8 +77,11 @@ class NepaliNewsDataSource {
             }.awaitAll().flatten()
         }
 
-        val combined = (fetchedArticles + getSeedArticles()).distinctBy { it.id }
-        combined.sortedByDescending { it.publishedEpoch }
+        if (fetchedArticles.isNotEmpty()) {
+            fetchedArticles.sortedByDescending { it.publishedEpoch }
+        } else {
+            getSeedArticles().sortedByDescending { it.publishedEpoch }
+        }
     }
 
     fun getSeedArticles(): List<NewsArticle> {
@@ -96,8 +94,8 @@ class NepaliNewsDataSource {
                 summary = "अन्तर्राष्ट्रिय स्टार खेलाडीहरूको सहभागिता रहने लिगको तयारी अन्तिम चरणमा, टिकट अनलाइनबाट खुला।",
                 content = "काठमाडौं — क्यानका अनुसार खेलकुद पर्यटनलाई विश्वव्यापी बनाउन यस पटकको लिग ऐतिहासिक हुनेछ। नेपाली क्रिकेट समर्थकहरूको व्यापक उत्साह देखिएको छ।",
                 source = NewsSource.RATOPATI,
-                originalUrl = "https://ratopati.com",
-                imageUrl = "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&auto=format&fit=crop&q=60",
+                originalUrl = "https://www.ratopati.com",
+                imageUrl = "https://npcdn.ratopati.com/media/news/sudur-budget_6bmfPR0FGu.webp",
                 category = NewsCategory.SPORTS,
                 publishedTimeStr = "५ मिनेट अघि",
                 publishedEpoch = now - 5 * 60 * 1000,
@@ -111,8 +109,8 @@ class NepaliNewsDataSource {
                 summary = "नेपाल राष्ट्र बैंकको पछिल्लो प्रतिवेदन अनुसार बाह्य क्षेत्र स्थायित्व बलियो, आयात धान्न सक्ने क्षमता १४ महिनाभन्दा बढी।",
                 content = "काठमाडौं — सेतोपाटी अनुसार बैंकिङ प्रणालीमा अधिक तरलता रहेकाले कर्जाको ब्याजदर एकल अंकमा झरेको छ, जसले उत्पादनमूलक लगानीमा सुधार ल्याउने अपेक्षा गरिएको छ।",
                 source = NewsSource.SETOPATI,
-                originalUrl = "https://setopati.com",
-                imageUrl = "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&auto=format&fit=crop&q=60",
+                originalUrl = "https://www.setopati.com",
+                imageUrl = "https://www.setopati.com/uploads/posts/1791891549-YQh0c-1791893769.jpg",
                 category = NewsCategory.ECONOMY,
                 publishedTimeStr = "१० मिनेट अघि",
                 publishedEpoch = now - 10 * 60 * 1000,
@@ -126,8 +124,8 @@ class NepaliNewsDataSource {
                 summary = "विद्यालय शिक्षा, नागरिकता र अख्तियार सम्बन्धी महत्त्वपूर्ण विधेयकहरूलाई प्राथमिकताका साथ अघि बढाउने सहमति।",
                 content = "काठमाडौं — अनलाइनखबरका अनुसार संसदीय कार्यव्यवस्था परामर्श समितिले विधायिकी कार्यलाई तीव्र बनाउने सहमति जुटाएको छ।",
                 source = NewsSource.ONLINEKHABAR,
-                originalUrl = "https://onlinekhabar.com",
-                imageUrl = "https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=800&auto=format&fit=crop&q=60",
+                originalUrl = "https://www.onlinekhabar.com",
+                imageUrl = "https://www.onlinekhabar.com/wp-content/uploads/2026/10/Amboka-chalaune.jpg",
                 category = NewsCategory.POLITICS,
                 publishedTimeStr = "१५ मिनेट अघि",
                 publishedEpoch = now - 15 * 60 * 1000,
@@ -142,7 +140,7 @@ class NepaliNewsDataSource {
                 content = "तनहुँ — बाह्रखरीका अनुसार यात्रुहरूलाई लामो समयदेखि सास्ती दिइरहेको मुग्लिङ-पोखरा खण्डमा काम तीव्र भएको छ। स्थानीय तथा पर्यटकहरू हर्षित छन्।",
                 source = NewsSource.BAARAHKHARI,
                 originalUrl = "https://baahrakhari.com",
-                imageUrl = "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800&auto=format&fit=crop&q=60",
+                imageUrl = "https://baahrakhari.com/uploads/posts/auto-engineering-1791894363.jpg",
                 category = NewsCategory.SOCIETY,
                 publishedTimeStr = "२० मिनेट अघि",
                 publishedEpoch = now - 20 * 60 * 1000,
@@ -157,7 +155,7 @@ class NepaliNewsDataSource {
                 content = "विराटनगर / पोखरा — नागरिक न्युज अनुसार प्रदेश सरकारहरूले वास्तविक किसानको लागत घटाउन सिँचाइ र आधुनिक कृषि औजारमा ५० प्रतिशत अनुदान घोषणा गरेका छन्।",
                 source = NewsSource.NAGARIK_NEWS,
                 originalUrl = "https://nagariknetwork.com",
-                imageUrl = "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=800&auto=format&fit=crop&q=60",
+                imageUrl = "https://nagariknetwork.com/wp-content/uploads/2023/04/Nayak-2080-Bhaktapur-Thumbnail.jpg",
                 category = NewsCategory.PROVINCES,
                 publishedTimeStr = "२५ मिनेट अघि",
                 publishedEpoch = now - 25 * 60 * 1000,

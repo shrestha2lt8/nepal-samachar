@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [BookmarkEntity::class, CachedArticleEntity::class],
-    version = 2,
+    version = 4,
     exportSchema = false
 )
 abstract class NewsDatabase : RoomDatabase() {

@@ -22,7 +22,7 @@ data class CachedArticleEntity(
     val isBreaking: Boolean,
     val cachedAt: Long = System.currentTimeMillis()
 ) {
-    fun toNewsArticle(isBookmarked: Boolean = false): NewsArticle {
+    fun toNewsArticle(isBookmarked: Boolean = false, isRead: Boolean = false): NewsArticle {
         return NewsArticle(
             id = id,
             title = title,
@@ -35,7 +35,8 @@ data class CachedArticleEntity(
             publishedTimeStr = publishedTimeStr,
             publishedEpoch = publishedEpoch,
             isBreaking = isBreaking,
-            isBookmarked = isBookmarked
+            isBookmarked = isBookmarked,
+            isRead = isRead
         )
     }
 
