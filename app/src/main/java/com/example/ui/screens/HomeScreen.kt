@@ -210,8 +210,8 @@ fun HomeScreen(
                             onBookmarkClick = { onBookmarkClick(article) }
                         )
 
-                        // Sponsored Ad Banner after article 3
-                        if (index == 3) {
+                        // Sponsored Ad Banner after every 3 news articles
+                        if ((index + 1) % 3 == 0) {
                             Spacer(modifier = Modifier.height(4.dp))
                             AdBanner(modifier = Modifier.padding(vertical = 4.dp))
                             Spacer(modifier = Modifier.height(4.dp))

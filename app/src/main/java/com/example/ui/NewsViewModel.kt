@@ -14,6 +14,10 @@ import com.example.data.repository.NewsRepository
 import com.example.util.NepaliDateUtil
 import com.example.util.NetworkMonitor
 import com.example.util.NewsDeduplicator
+import com.example.data.model.RadioStation
+import com.example.data.model.getDefaultRadioStations
+import com.example.util.RadioPlaybackManager
+import com.example.util.RadioPlaybackState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,6 +29,7 @@ import java.util.Calendar
 
 enum class MainTab(val titleNepali: String, val titleEnglish: String) {
     FEED("समाचार", "Feed"),
+    RADIO("रेडियो", "FM Radio"),
     BOOKMARKS("बुकमार्क", "Bookmarks"),
     SEARCH("खोज", "Search")
 }
@@ -46,7 +51,9 @@ data class NewsUiState(
     val markets: FinancialMarketsState = FinancialMarketsState(),
     val nepaliDate: String = NepaliDateUtil.getCurrentNepaliDateBs(),
     val currentTime: String = NepaliDateUtil.getCurrentTimeFormatted(),
-    val gregorianDate: String = NepaliDateUtil.getCurrentGregorianDateFormatted()
+    val gregorianDate: String = NepaliDateUtil.getCurrentGregorianDateFormatted(),
+    val radioStations: List<RadioStation> = getDefaultRadioStations(),
+    val radioPlaybackState: RadioPlaybackState = RadioPlaybackState.Idle
 )
 
 class NewsViewModel(application: Application) : AndroidViewModel(application) {
@@ -90,6 +97,8 @@ class NewsViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    val radioPlaybackManager = RadioPlaybackManager(application)
+
     val uiState: StateFlow<NewsUiState> = combine(
         repository.articlesWithBookmarkStatus,
         repository.bookmarkedArticles,
@@ -104,7 +113,8 @@ class NewsViewModel(application: Application) : AndroidViewModel(application) {
         _activeReaderArticle,
         _isDarkTheme,
         _currentNepaliDate,
-        _currentTime
+        _currentTime,
+        radioPlaybackManager.playbackState
     ) { params ->
         @Suppress("UNCHECKED_CAST")
         val allArticles = params[0] as List<NewsArticle>
@@ -122,6 +132,7 @@ class NewsViewModel(application: Application) : AndroidViewModel(application) {
         val isDarkTheme = params[11] as Boolean
         val nepaliDate = params[12] as String
         val currentTime = params[13] as String
+        val radioPlaybackState = params[14] as RadioPlaybackState
 
         // Compute filtered articles
         val filtered = allArticles.filter { article ->
@@ -162,7 +173,8 @@ class NewsViewModel(application: Application) : AndroidViewModel(application) {
             markets = markets,
             nepaliDate = nepaliDate,
             currentTime = currentTime,
-            gregorianDate = NepaliDateUtil.getCurrentGregorianDateFormatted()
+            gregorianDate = NepaliDateUtil.getCurrentGregorianDateFormatted(),
+            radioPlaybackState = radioPlaybackState
         )
     }.stateIn(
         scope = viewModelScope,
@@ -218,6 +230,31 @@ class NewsViewModel(application: Application) : AndroidViewModel(application) {
             repository.toggleBookmark(article)
             _userNotice.value = if (article.isBookmarked) "बुकमार्क हटाइयो" else "समाचार सुरक्षित गरियो"
         }
+    }
+
+    fun toggleRadio(station: RadioStation) {
+        radioPlaybackManager.togglePlayPause(station)
+    }
+
+    fun playRadio(station: RadioStation) {
+        radioPlaybackManager.play(station)
+    }
+
+    fun pauseRadio() {
+        radioPlaybackManager.pause()
+    }
+
+    fun resumeRadio() {
+        radioPlaybackManager.resume()
+    }
+
+    fun stopRadio() {
+        radioPlaybackManager.stop()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        radioPlaybackManager.release()
     }
 
     fun clearNotice() {

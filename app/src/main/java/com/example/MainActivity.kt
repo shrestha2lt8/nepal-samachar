@@ -56,10 +56,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.outlined.Info
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.MainTab
 import com.example.ui.components.AboutAppDialog
+import com.example.ui.components.RadioMiniPlayer
+import com.example.ui.screens.RadioScreen
 import com.example.ui.NewsViewModel
 import com.example.ui.components.MarketDetailDialog
 import com.example.ui.components.SelectedMarketTab
@@ -283,6 +286,30 @@ fun NepalNewsApp(
                     modifier = Modifier.testTag("nav_tab_feed")
                 )
 
+                // FM Radio Tab
+                NavigationBarItem(
+                    selected = uiState.activeTab == MainTab.RADIO,
+                    onClick = { viewModel.setActiveTab(MainTab.RADIO) },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Radio,
+                            contentDescription = "रेडियो"
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = "रेडियो",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = NepalCrimson,
+                        selectedTextColor = NepalCrimson,
+                        indicatorColor = NepalCrimson.copy(alpha = 0.12f)
+                    ),
+                    modifier = Modifier.testTag("nav_tab_radio")
+                )
+
                 // Search Tab
                 NavigationBarItem(
                     selected = uiState.activeTab == MainTab.SEARCH,
@@ -370,6 +397,12 @@ fun NepalNewsApp(
                     onRefresh = { viewModel.refreshNews() }
                 )
 
+                MainTab.RADIO -> RadioScreen(
+                    stations = uiState.radioStations,
+                    playbackState = uiState.radioPlaybackState,
+                    onStationClick = { station -> viewModel.toggleRadio(station) }
+                )
+
                 MainTab.SEARCH -> SearchScreen(
                     searchQuery = uiState.searchQuery,
                     onSearchQueryChange = { q -> viewModel.setSearchQuery(q) },
@@ -390,6 +423,19 @@ fun NepalNewsApp(
                         }
                     },
                     onBookmarkClick = { art -> viewModel.toggleBookmark(art) }
+                )
+            }
+
+            // Persistent floating mini-player bar across tabs (when not on the dedicated Radio tab)
+            if (uiState.activeTab != MainTab.RADIO) {
+                RadioMiniPlayer(
+                    playbackState = uiState.radioPlaybackState,
+                    onTogglePlayPause = { station -> viewModel.toggleRadio(station) },
+                    onStop = { viewModel.stopRadio() },
+                    onExpand = { viewModel.setActiveTab(MainTab.RADIO) },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 6.dp)
                 )
             }
         }
