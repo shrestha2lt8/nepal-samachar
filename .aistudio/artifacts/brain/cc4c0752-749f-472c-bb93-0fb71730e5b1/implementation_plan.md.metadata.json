@@ -1,6 +1,6 @@
 {
-  "summary": "Implementation plan to align store publishing assets with the user's real app screenshot, add AdMob banner ads after every 3 news articles, and implement live Nepali FM radio streaming with a dedicated bottom tab and persistent mini-player.",
-  "updatedAt": "2026-10-14T10:04:55.631663136Z",
+  "summary": "Implementation plan to fix portal news availability, implement an animated first-load skeleton experience with Nepali loading messaging, and lift the Reader screen's primary red action button above the device navigation bar.",
+  "updatedAt": "2026-10-14T10:35:21.089000474Z",
   "requestFeedback": true,
   "userFacing": true
 }

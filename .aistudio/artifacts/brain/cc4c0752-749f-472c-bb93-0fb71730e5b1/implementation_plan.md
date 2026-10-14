@@ -1,72 +1,95 @@
-# Implementation Plan: App Store Visual Realignment, AdMob Cadence, and Live Nepali FM Radio
+# Implementation Plan: Portal News Availability, First-Launch Skeleton Experience, and Reader Action Insets
 
-Align the Google Play Store graphics with the user's exact uploaded app screenshot (`image.png`), adjust the AdMob advertisement insertion logic to render an ad after every 3 news articles in the feed, and build a live Nepali FM Radio streaming player with a dedicated bottom navigation tab and persistent mini-player.
+Address empty portal news feeds by auditing and updating feed endpoints/fallback web scrapers, replace the first-load "यस वर्गमा कुनै समाचार भेटिएन" empty state with an engaging animated shimmer loader and Nepali loading messaging, and lift the Reader screen's primary red action button above the device's navigation bar using proper `navigationBarsPadding`.
 
 ---
 
-## User Review Required
+## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> **AdMob Placement Cadence**: An AdMob banner ad will be inserted after every 3 news items (after items 3, 6, 9...). It will preserve the clean card container with the `"📢 विज्ञापन (Ad) नेपाल समाचार साझेदार"` header shown in your screenshot.
-> **FM Radio Streaming Sources**: Top national stations included: Radio Nepal (100 MHz), Radio Kantipur (96.1 MHz), Ujyaalo 90 Network (90.0 MHz), Radio Sagarmatha (102.4 MHz), BBC Nepali Service, Image FM (97.9 MHz), and Hits FM (91.2 MHz).
+> - **Portal Lineup Strategy**: Portals with active, verified live feeds (Ratopati, Setopati, Onlinekhabar, Baarahkhari, Nagarik News, Bizmandu, Sirius Nepal, Haatma, NV Khabar, Nagarik Sewa) will remain front-and-center. For major portals without standard RSS endpoints (such as Kantipur and Annapurna Post), we will deploy direct HTML article extractors so users see live reporting. Dead or unreachable domains will be gracefully retired to prevent empty portal feeds.
+> - **First-Launch UX**: When opening the app or switching filters while fetching, the UI will display a polished animated skeleton shimmer with `"ताजा समाचार संकलन गरिँदै छ..."` rather than showing the confusing `"यस वर्गमा कुनै समाचार भेटिएन"` ("No news found") banner.
+> - **Reader Action Insets**: In `ReaderScreen.kt`, the sticky bottom surface holding the primary red button will have `.navigationBarsPadding()` applied to guarantee full clearance above 3-button navigation bars (Back, Home, Recents) and gesture navigation pills on all Android devices.
 
 ---
 
-## Proposed Changes
+## 1. Overview & Core Concept
 
-### 1. Store Graphics Realignment with Current App Screenshot
-- **Source of Truth**: Use the user's uploaded `image.png` (displaying the clean white top bar, red square app logo, `⚡ ताजा` breaking badge, live compact NEPSE & gold ticker, and cyan `[↗ मूल स्रोतमा पढ्नुहोस्]` action buttons).
-- **Process Store Phone Screenshot (`play_store_assets/phone_screenshot_1.png`)**:
-  - Convert and format `image.png` to 1080 × 1920 px (9:16 aspect ratio) for Google Play Store phone listing.
-  - Sync `app/src/main/res/drawable/img_store_screenshot.png` so the in-app `AboutAppDialog` displays the exact current app interface.
-- **Update Feature Graphic (`play_store_assets/feature_graphic_1024x500.png`)**:
-  - Update the 1024 × 500 px Google Play Feature Graphic banner using the real screenshot on the phone mockup, maintaining the red/white brand harmony and official typography.
-  - Update `app/src/main/res/drawable/img_feature_graphic.png` for in-app consistency.
+- **What It Does**:
+  1. Ensures every selected news portal consistently returns real news stories.
+  2. Replaces premature "not found" zero-states on first load with animated news skeleton cards and informative Nepali status messaging.
+  3. Fixes edge-to-edge window insets in the article detail reader so the primary red redirect button is 100% visible and easily tappable above the phone's system navigation buttons.
+- **Target Audience**: Nepali readers accessing live national news on diverse Android devices with varying system navigation bars (gesture bar vs. 3-button bar).
 
-### 2. AdMob Ad Placement Every 3 News Articles (`HomeScreen.kt`)
-- Update `HomeScreen.kt` LazyColumn items:
-  - Calculate index positions to place an AdMob banner ad after every 3 news cards (`(index + 1) % 3 == 0`).
-  - Maintain the existing visual style from your screenshot: `"📢 विज्ञापन (Ad) नेपाल समाचार साझेदार"` label with the AdMob banner container.
-  - Ensure stable list keys so pull-to-refresh, source filtering, and category switches do not reload ads unnecessarily or cause scroll stutter.
+---
 
-### 3. Live Nepali FM Radio Streaming Feature
-- **Radio Data Layer (`RadioStation.kt` & `RadioRepository.kt`)**:
-  - Define model `RadioStation(id, nameNepali, frequency, streamUrl, logoUrl, location, description)`.
-  - Curate active HTTP/HLS streaming endpoints for top national stations:
-    - **Radio Nepal (रेडियो नेपाल)** — 100 MHz (Singhadurbar, Kathmandu)
-    - **Radio Kantipur (रेडियो कान्तिपुर)** — 96.1 MHz
-    - **Ujyaalo 90 Network (उज्यालो ९० नेटवर्क)** — 90.0 MHz
-    - **Radio Sagarmatha (रेडियो सगरमाथा)** — 102.4 MHz
-    - **BBC Nepali Service (बीबीसी नेपाली)**
-    - **Image FM (इमेज एफएम)** — 97.9 MHz
-    - **Hits FM (हिट्स एफएम)** — 91.2 MHz
-- **Audio Playback Manager (`RadioPlaybackManager.kt`)**:
-  - Handle audio streaming, buffering, errors, play/pause state, and audio focus using Android Media3/ExoPlayer.
-  - Provide a reactive `StateFlow<RadioPlaybackState>` (Idle, Buffering, Playing, Paused, Error).
-- **Dedicated Radio Screen (`RadioScreen.kt`)**:
-  - Accessible via the new **रेडियो (Radio)** tab in the bottom navigation bar.
-  - Shows station cards with frequency badges, live playing wave/equalizer animation, station metadata, and instant play/pause.
-- **Persistent Floating Mini-Player Bar (`RadioMiniPlayer.kt`)**:
-  - Positioned right above the bottom navigation bar across all tabs (`MainTab.FEED`, `MainTab.SEARCH`, `MainTab.BOOKMARKS`).
-  - Displays the currently playing station name, frequency, animated playing indicator, and quick Play/Pause/Stop controls so users can listen to radio while reading news articles.
-- **Bottom Navigation Update (`MainActivity.kt`, `NewsViewModel.kt`, `MainTab.kt`)**:
-  - Add `MainTab.RADIO` to `MainTab.kt`.
-  - Update bottom navigation bar to include 4 tabs:
-    1. **समाचार** (Feed)
-    2. **रेडियो** (FM Radio with `Icons.Default.Radio`)
-    3. **खोज** (Search)
-    4. **बुकमार्क** (Bookmarks)
+## 2. User Experience & Visual Design
+
+### First-Launch & Loading Experience (`HomeScreen.kt`)
+- When the app is launched and database cache is initializing or remote feeds are loading:
+  - Display 4 animated placeholder news card skeletons with subtle pulse/shimmer animation matching Material 3 surface tones.
+  - Display a branded status header:
+    - `"ताजा समाचार संकलन गरिँदै छ..."` (Gathering latest news...)
+    - Subtitle: `"नेपालका २०+ शीर्ष समाचार पोर्टलहरूबाट प्रत्यक्ष सामग्री प्राप्त गर्दै..."`
+  - Prevents the alarming "No news found" empty state from flashing before feeds have finished fetching.
+- True Empty State: Only rendered when `isRefreshing == false` and the filter yields zero matches, with a one-tap `"सबै समाचार हेर्नुहोस्"` button.
+
+### Reader Screen Bottom Navigation Inset (`ReaderScreen.kt`)
+- In `ReaderScreen.kt`, add `.navigationBarsPadding()` to the sticky bottom surface / row.
+- Ensure the red button (`NepalCrimson`) maintains its full 48dp touch target, rounded corners (12dp), and comfortable 12dp vertical padding safely above the Android system buttons.
+
+---
+
+## 3. Key Product Decisions & Trade-Offs
+
+- **Decision 1: Direct HTML Scrapers for Portals Lacking Working RSS**
+  - *Chosen Approach*: Deploy robust HTML article listing extractors for portals whose default `/feed` returns HTTP 404 (e.g. Kantipur, Annapurna Post, Naya Patrika).
+  - *Why*: Several leading Nepali news organizations don't maintain standard WordPress RSS feeds; direct HTML extraction guarantees users can read stories from their favorite portals without encountering blank screens.
+- **Decision 2: Clear Distinction Between Initial Loading vs. Empty Filter**
+  - *Chosen Approach*: Check `articles.isEmpty() && isRefreshing` (or `initialLoad`) in `HomeScreen.kt` to trigger the skeleton shimmer rather than the empty state container.
+  - *Why*: Dramatically improves perceived performance and avoids user confusion during the 1-2 seconds of initial network ingestion.
+
+---
+
+## 4. Technical Architecture & Component Flow
+
+```
+┌────────────────────────────────────────────────────────┐
+│                      HomeScreen                        │
+│                                                        │
+│  articles.isEmpty() && isRefreshing?                   │
+│  ├── YES ──▶ NewsSkeletonShimmer (4 cards + badge)     │
+│  └── NO  ──▶ LazyColumn with NewsCards & AdBanners     │
+└────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────┐
+│                     ReaderScreen                       │
+│                                                        │
+│  Scaffold(bottomBar = {                                │
+│    Surface(modifier = Modifier.navigationBarsPadding())│
+│      ├── Red Action Button (Safely above Back/Home)    │
+│  })                                                    │
+└────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────┐
+│                NepaliNewsDataSource                    │
+│                                                        │
+│  Verified RSS Feeds ──▶ FeedParser                     │
+│  Non-RSS Portals   ──▶ PortalHtmlScraper               │
+│                    ──▶ NewsRepository ──▶ Room Cache   │
+└────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## Verification Plan
 
 ### Automated Tests
-- Run unit test suite: `gradle :app:testDebugUnitTest` to verify repository, feed parsing, and model integrity.
-- Verify Robolectric tests for tab switching and bookmark toggling.
+- Run `gradle :app:testDebugUnitTest` to verify parser, scraper, and repository tests pass.
+- Verify Robolectric tests for first-load state rendering.
 
 ### Manual Verification
-- Verify that `phone_screenshot_1.png` and `feature_graphic_1024x500.png` in `play_store_assets/` match the attached screenshot.
-- Verify news feed displays an ad banner after article 3, 6, 9, etc.
-- Verify FM Radio streams connect and play audio, toggle between stations, and persist in the mini-player while navigating across tabs.
+- Launch app with empty cache: verify animated skeleton shimmer and Nepali loading text appear instead of "यस वर्गमा कुनै समाचार भेटिएन".
+- Open every news portal tab: verify news cards populate without blank screens.
+- Open `ReaderScreen`: verify the red action button is fully visible above the system navigation bar with ample clearance.
 - Final applet compilation check via `compile_applet`.

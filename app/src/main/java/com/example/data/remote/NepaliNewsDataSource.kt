@@ -22,6 +22,22 @@ class NepaliNewsDataSource {
         .build()
 
     suspend fun fetchFeed(source: NewsSource): List<NewsArticle> = withContext(Dispatchers.IO) {
+        val liveArticles = when (source) {
+            NewsSource.KANTIPUR -> fetchKantipurFromHtml()
+            NewsSource.NEPALPRESS -> fetchNepalPressFromHtml()
+            NewsSource.ANNAPURNA_POST -> fetchAnnapurnaFromHtml()
+            else -> fetchRssFeed(source)
+        }
+
+        if (liveArticles.isNotEmpty()) {
+            return@withContext liveArticles
+        }
+
+        // Guaranteed fallback to seed articles for this specific source if live network fails
+        getSeedArticles().filter { it.source == source }
+    }
+
+    private suspend fun fetchRssFeed(source: NewsSource): List<NewsArticle> = withContext(Dispatchers.IO) {
         if (source.feedUrl.isBlank()) return@withContext emptyList()
         try {
             val request = Request.Builder()
@@ -64,6 +80,172 @@ class NepaliNewsDataSource {
             Log.w("NepaliNewsDataSource", "Live fetch notice for ${source.displayName}: ${e.message}")
         }
         emptyList()
+    }
+
+    private fun fetchKantipurFromHtml(): List<NewsArticle> {
+        try {
+            val req = Request.Builder()
+                .url("https://ekantipur.com")
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) NepalNewsAggregator/1.0")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return emptyList()
+                val html = resp.body?.string() ?: return emptyList()
+                val pattern = java.util.regex.Pattern.compile(
+                    """<a\s+[^>]*href="(https://ekantipur\.com/[a-z]+/\d{4}/\d{2}/\d{2}/[^"]+\.html)"[^>]*>(.*?)</a>""",
+                    java.util.regex.Pattern.DOTALL
+                )
+                val matcher = pattern.matcher(html)
+                val list = mutableListOf<NewsArticle>()
+                val seen = mutableSetOf<String>()
+                val now = System.currentTimeMillis()
+                var offset = 0L
+
+                while (matcher.find() && list.size < 25) {
+                    val url = matcher.group(1)?.trim() ?: continue
+                    val rawTitle = matcher.group(2) ?: continue
+                    val title = rawTitle.replace(Regex("<[^>]+>"), " ").replace("&nbsp;", " ").trim()
+                    if (title.length > 15 && url !in seen) {
+                        seen.add(url)
+                        val id = java.util.UUID.nameUUIDFromBytes(url.toByteArray()).toString().substring(0, 12)
+                        val cat = when {
+                            url.contains("/sports") -> NewsCategory.SPORTS
+                            url.contains("/business") || url.contains("/market") -> NewsCategory.ECONOMY
+                            url.contains("/entertainment") -> NewsCategory.ENTERTAINMENT
+                            url.contains("/world") -> NewsCategory.WORLD
+                            url.contains("/technology") -> NewsCategory.TECH
+                            url.contains("/opinion") -> NewsCategory.OPINION
+                            else -> NewsCategory.LATEST
+                        }
+                        list.add(
+                            NewsArticle(
+                                id = "kanti_$id",
+                                title = title,
+                                summary = "$title — कान्तिपुर दैनिकको आधिकारिक अनलाइन पोर्टलबाट साभार।",
+                                content = "$title\n\nविस्तृत समाचार तथा टिप्पणीका लागि कान्तिपुर दैनिकको मूल वेबसाइट ekantipur.com मा जान सक्नुहुन्छ।",
+                                source = NewsSource.KANTIPUR,
+                                originalUrl = url,
+                                imageUrl = com.example.util.NewsImageUtil.getFallbackImageUrl(cat, id.hashCode()),
+                                category = cat,
+                                publishedTimeStr = "ताजा",
+                                publishedEpoch = now - offset,
+                                isBreaking = list.isEmpty()
+                            )
+                        )
+                        offset += 120_000L
+                    }
+                }
+                return list
+            }
+        } catch (e: Exception) {
+            Log.w("NepaliNewsDataSource", "Kantipur scrape error: ${e.message}")
+        }
+        return emptyList()
+    }
+
+    private fun fetchNepalPressFromHtml(): List<NewsArticle> {
+        try {
+            val req = Request.Builder()
+                .url("https://www.nepalpress.com")
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) NepalNewsAggregator/1.0")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return emptyList()
+                val html = resp.body?.string() ?: return emptyList()
+                val pattern = java.util.regex.Pattern.compile(
+                    """<a\s+[^>]*href="(https://www\.nepalpress\.com/\d{4}/\d{2}/\d{2}/\d+/[^"]*)"[^>]*>(.*?)</a>""",
+                    java.util.regex.Pattern.DOTALL
+                )
+                val matcher = pattern.matcher(html)
+                val list = mutableListOf<NewsArticle>()
+                val seen = mutableSetOf<String>()
+                val now = System.currentTimeMillis()
+                var offset = 0L
+
+                while (matcher.find() && list.size < 25) {
+                    val url = matcher.group(1)?.trim() ?: continue
+                    val rawTitle = matcher.group(2) ?: continue
+                    val title = rawTitle.replace(Regex("<[^>]+>"), " ").replace("&nbsp;", " ").trim()
+                    if (title.length > 15 && url !in seen) {
+                        seen.add(url)
+                        val id = java.util.UUID.nameUUIDFromBytes(url.toByteArray()).toString().substring(0, 12)
+                        list.add(
+                            NewsArticle(
+                                id = "np_$id",
+                                title = title,
+                                summary = "$title — नेपालप्रेसको आधिकारिक अनलाइन पोर्टलबाट साभार।",
+                                content = "$title\n\nविस्तृत समाचार तथा विश्लेषणका लागि nepalpress.com मा पढ्नुहोस्।",
+                                source = NewsSource.NEPALPRESS,
+                                originalUrl = url,
+                                imageUrl = com.example.util.NewsImageUtil.getFallbackImageUrl(NewsCategory.LATEST, id.hashCode()),
+                                category = NewsCategory.LATEST,
+                                publishedTimeStr = "ताजा",
+                                publishedEpoch = now - offset,
+                                isBreaking = list.isEmpty()
+                            )
+                        )
+                        offset += 120_000L
+                    }
+                }
+                return list
+            }
+        } catch (e: Exception) {
+            Log.w("NepaliNewsDataSource", "Nepalpress scrape error: ${e.message}")
+        }
+        return emptyList()
+    }
+
+    private fun fetchAnnapurnaFromHtml(): List<NewsArticle> {
+        try {
+            val req = Request.Builder()
+                .url("https://annapurnapost.com")
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) NepalNewsAggregator/1.0")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return emptyList()
+                val html = resp.body?.string() ?: return emptyList()
+                val pattern = java.util.regex.Pattern.compile(
+                    """<a\s+[^>]*href="(/story/\d+/[^"]*)"[^>]*>(.*?)</a>""",
+                    java.util.regex.Pattern.DOTALL
+                )
+                val matcher = pattern.matcher(html)
+                val list = mutableListOf<NewsArticle>()
+                val seen = mutableSetOf<String>()
+                val now = System.currentTimeMillis()
+                var offset = 0L
+
+                while (matcher.find() && list.size < 25) {
+                    val relativeUrl = matcher.group(1)?.trim() ?: continue
+                    val fullUrl = "https://annapurnapost.com$relativeUrl"
+                    val rawTitle = matcher.group(2) ?: continue
+                    val title = rawTitle.replace(Regex("<[^>]+>"), " ").replace("&nbsp;", " ").trim()
+                    if (title.length > 15 && fullUrl !in seen) {
+                        seen.add(fullUrl)
+                        val id = java.util.UUID.nameUUIDFromBytes(fullUrl.toByteArray()).toString().substring(0, 12)
+                        list.add(
+                            NewsArticle(
+                                id = "ap_$id",
+                                title = title,
+                                summary = "$title — अन्नपूर्ण पोस्टको आधिकारिक अनलाइन पोर्टलबाट साभार।",
+                                content = "$title\n\nविस्तृत समाचार तथा विश्लेषणका लागि annapurnapost.com मा पढ्नुहोस्।",
+                                source = NewsSource.ANNAPURNA_POST,
+                                originalUrl = fullUrl,
+                                imageUrl = com.example.util.NewsImageUtil.getFallbackImageUrl(NewsCategory.LATEST, id.hashCode()),
+                                category = NewsCategory.LATEST,
+                                publishedTimeStr = "ताजा",
+                                publishedEpoch = now - offset,
+                                isBreaking = list.isEmpty()
+                            )
+                        )
+                        offset += 120_000L
+                    }
+                }
+                return list
+            }
+        } catch (e: Exception) {
+            Log.w("NepaliNewsDataSource", "Annapurna scrape error: ${e.message}")
+        }
+        return emptyList()
     }
 
     suspend fun fetchAllSources(): List<NewsArticle> = withContext(Dispatchers.IO) {

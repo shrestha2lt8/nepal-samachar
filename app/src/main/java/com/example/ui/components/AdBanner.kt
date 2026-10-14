@@ -106,35 +106,42 @@ fun AdBanner(
                     .height(52.dp),
                 contentAlignment = Alignment.Center
             ) {
-                AndroidView(
-                    modifier = Modifier.fillMaxWidth(),
-                    factory = { context ->
-                        try {
-                            AdView(context).apply {
-                                setAdSize(AdSize.BANNER)
-                                this.adUnitId = adUnitId
-                                adListener = object : AdListener() {
-                                    override fun onAdLoaded() {
-                                        isAdLoaded = true
-                                        adLoadFailed = false
-                                    }
+                if (!adLoadFailed) {
+                    AndroidView(
+                        modifier = Modifier.fillMaxWidth(),
+                        factory = { context ->
+                            try {
+                                AdView(context).apply {
+                                    setAdSize(AdSize.BANNER)
+                                    this.adUnitId = adUnitId
+                                    adListener = object : AdListener() {
+                                        override fun onAdLoaded() {
+                                            isAdLoaded = true
+                                            adLoadFailed = false
+                                        }
 
-                                    override fun onAdFailedToLoad(error: LoadAdError) {
-                                        isAdLoaded = false
-                                        adLoadFailed = true
+                                        override fun onAdFailedToLoad(error: LoadAdError) {
+                                            isAdLoaded = false
+                                            adLoadFailed = true
+                                        }
                                     }
+                                    val request = AdRequest.Builder().build()
+                                    loadAd(request)
                                 }
-                                val request = AdRequest.Builder().build()
-                                loadAd(request)
+                            } catch (_: Throwable) {
+                                adLoadFailed = true
+                                android.view.View(context)
                             }
-                        } catch (_: Throwable) {
-                            adLoadFailed = true
-                            android.view.View(context)
+                        },
+                        onRelease = { view ->
+                            try {
+                                (view as? AdView)?.destroy()
+                            } catch (_: Throwable) {}
                         }
-                    }
-                )
+                    )
+                }
 
-                if (!isAdLoaded) {
+                if (!isAdLoaded || adLoadFailed) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()

@@ -30,6 +30,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -46,7 +47,18 @@ import com.example.ui.components.CompactFilterRow
 import com.example.ui.components.MarketsRibbon
 import com.example.ui.components.NewsCard
 import com.example.ui.components.SelectedMarketTab
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
 import com.example.ui.theme.AmberGold
+import com.example.ui.theme.NepalCrimson
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -148,46 +160,51 @@ fun HomeScreen(
                 .testTag("pull_to_refresh_box")
         ) {
             if (articles.isEmpty()) {
-                // Empty State
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                if (isRefreshing || cachedCount == 0) {
+                    // Engaging First-Launch / Loading Skeleton
+                    NewsLoadingSkeleton()
+                } else {
+                    // Empty State for filtered results
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.size(40.dp)
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = "यस वर्गमा कुनै समाचार भेटिएन",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "कृपया स्वाइप गरेर ताजा गर्नुहोस् वा अर्को समाचार स्रोत छान्नुहोस्।",
-                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Button(
-                            onClick = {
-                                onCategorySelected(NewsCategory.LATEST)
-                                onSourceSelected(NewsSource.ALL)
-                                onRefresh()
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.testTag("reset_filters_btn")
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
                         ) {
-                            Text("सबै समाचार हेर्नुहोस्")
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.size(40.dp)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "यस वर्गमा कुनै समाचार भेटिएन",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "कृपया स्वाइप गरेर ताजा गर्नुहोस् वा अर्को समाचार स्रोत छान्नुहोस्।",
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = {
+                                    onCategorySelected(NewsCategory.LATEST)
+                                    onSourceSelected(NewsSource.ALL)
+                                    onRefresh()
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.testTag("reset_filters_btn")
+                            ) {
+                                Text("सबै समाचार हेर्नुहोस्")
+                            }
                         }
                     }
                 }
@@ -222,3 +239,146 @@ fun HomeScreen(
         }
     }
 }
+
+@Composable
+fun NewsLoadingSkeleton(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "shimmer_transition")
+    val alpha by transition.animateFloat(
+        initialValue = 0.28f,
+        targetValue = 0.72f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 850, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "shimmer_alpha"
+    )
+
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .testTag("news_loading_skeleton_list"),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Status Messaging Card
+        item(key = "loading_status_card") {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("loading_status_banner"),
+                shape = RoundedCornerShape(12.dp),
+                color = NepalCrimson.copy(alpha = 0.08f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, NepalCrimson.copy(alpha = 0.2f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.5.dp,
+                        color = NepalCrimson
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "ताजा समाचार संकलन गरिँदै छ...",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "नेपालका २०+ शीर्ष अनलाइन पोर्टलहरूबाट प्रत्यक्ष सामग्री प्राप्त हुँदैछ...",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 11.sp
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // 4 Animated Skeleton News Cards
+        items(count = 4) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(130.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 1.dp,
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Left Text Column
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        // Source chip placeholder
+                        Box(
+                            modifier = Modifier
+                                .width(80.dp)
+                                .height(16.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha * 0.4f))
+                        )
+
+                        // Title line 1
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.95f)
+                                .height(14.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha * 0.6f))
+                        )
+
+                        // Title line 2
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.75f)
+                                .height(14.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha * 0.5f))
+                        )
+
+                        // Bottom date metadata
+                        Box(
+                            modifier = Modifier
+                                .width(90.dp)
+                                .height(12.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha * 0.3f))
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    // Right Thumbnail placeholder
+                    Box(
+                        modifier = Modifier
+                            .size(92.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = alpha * 0.35f))
+                    )
+                }
+            }
+        }
+    }
+}
+
