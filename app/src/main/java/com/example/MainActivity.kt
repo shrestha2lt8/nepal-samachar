@@ -8,6 +8,7 @@ import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.io.File
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -81,6 +82,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Clean up any corrupted Chromium/WebView disk cache from previous unclean shutdowns
+        sanitizeWebViewCache(applicationContext)
+
         // Initialize Google Mobile Ads SDK asynchronously in background coroutine
         lifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -99,6 +103,22 @@ class MainActivity : ComponentActivity() {
                 NepalNewsApp(viewModel = viewModel)
             }
         }
+    }
+
+    private fun sanitizeWebViewCache(context: android.content.Context) {
+        try {
+            val webViewDir = File(context.cacheDir, "WebView")
+            if (webViewDir.exists()) {
+                val codeCache = File(webViewDir, "Default/HTTP Cache/Code Cache")
+                if (codeCache.exists()) {
+                    codeCache.deleteRecursively()
+                }
+                val httpCache = File(webViewDir, "Default/HTTP Cache")
+                if (httpCache.exists()) {
+                    httpCache.deleteRecursively()
+                }
+            }
+        } catch (_: Exception) {}
     }
 }
 

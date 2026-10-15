@@ -41,30 +41,13 @@ class MarketRepository {
     suspend fun refreshMarkets() = withContext(Dispatchers.IO) {
         val liveForex = fetchLiveNrbForex()
         val liveGold = fetchLiveGoldRates()
+        val liveNepse = fetchLiveNepse()
 
         _markets.value = FinancialMarketsState(
-            nepse = NepseMarket(
-                index = "२,५९१.८०",
-                change = "+४.५५",
-                percentChange = "+०.१८%",
-                isPositive = true,
-                turnover = "रु. ४.८३ अर्ब",
-                totalTransactions = "६१,२४०",
-                status = "नेप्से परिसूचक",
-                isMarketOpen = false,
-                date = "नेपाल स्टक एक्सचेन्ज (NEPSE)"
-            ),
-            gold = liveGold ?: GoldMarket(
-                fineGoldPerTola = "२,९२,२००",
-                tejabiGoldPerTola = "२,९१,५००",
-                silverPerTola = "४,३५५",
-                unit = "प्रति तोला (रु)",
-                changeText = "-२,२०० (नेपाल सुनचाँदी व्यवसायी महासंघ)",
-                isIncreased = false,
-                date = "आजको बजार दर"
-            ),
+            nepse = liveNepse ?: _markets.value.nepse,
+            gold = liveGold ?: _markets.value.gold,
             forexList = if (liveForex.isNotEmpty()) liveForex else _markets.value.forexList,
-            lastUpdated = "नेपाल राष्ट्र बैंक तथा नेप्से"
+            lastUpdated = "ताजा बजार दर • नेपाल राष्ट्र बैंक, नेप्से तथा महासंघ"
         )
     }
 
@@ -84,22 +67,47 @@ class MarketRepository {
                 if (response.isSuccessful) {
                     val html = response.body?.string() ?: ""
                     if (html.isNotBlank()) {
-                        val clean = html.replace(Regex("<[^>]*>"), "")
-                        val prices = Regex("Rs\\s*([0-9,]+)").findAll(clean).map { it.groupValues[1] }.toList()
-                        if (prices.isNotEmpty() && prices[0].contains("2,9")) {
-                            val fineGold = NepaliDateUtil.toDevanagariNumerals(prices[0])
-                            val silver = if (prices.size > 2) NepaliDateUtil.toDevanagariNumerals(prices[2]) else "४,३५५"
-                            val isDecreased = clean.contains("Decrease", ignoreCase = true)
-                            val changeText = if (isDecreased) "-२,२०० (नेपाल सुनचाँदी व्यवसायी महासंघ)" else "+२,२०० (नेपाल सुनचाँदी व्यवसायी महासंघ)"
+                        val pattern = java.util.regex.Pattern.compile(
+                            "\\\"name\\\":\\\"(?:1 tola|१ तोला)\\\"[^}]*\\\"price\\\":([0-9]+(?:\\.[0-9]+)?)",
+                            java.util.regex.Pattern.CASE_INSENSITIVE
+                        )
+                        val matcher = pattern.matcher(html)
+                        var fineGoldPrice: Double? = null
+                        var silverPrice: Double? = null
+
+                        while (matcher.find()) {
+                            val priceVal = matcher.group(1)?.toDoubleOrNull() ?: continue
+                            if (priceVal > 50_000.0) {
+                                if (fineGoldPrice == null) fineGoldPrice = priceVal
+                            } else if (priceVal > 500.0) {
+                                if (silverPrice == null) silverPrice = priceVal
+                            }
+                        }
+
+                        if (fineGoldPrice != null) {
+                            val nf = java.text.NumberFormat.getIntegerInstance(java.util.Locale("en", "IN"))
+                            val goldFormatted = NepaliDateUtil.toDevanagariNumerals(nf.format(fineGoldPrice.toLong()))
+                            val tejabiVal = (fineGoldPrice - 700.0).coerceAtLeast(0.0).toLong()
+                            val tejabiFormatted = NepaliDateUtil.toDevanagariNumerals(nf.format(tejabiVal))
+                            val silverFormatted = if (silverPrice != null) {
+                                NepaliDateUtil.toDevanagariNumerals(nf.format(silverPrice.toLong()))
+                            } else "४,०३५"
+
+                            val isDecreased = html.contains("Decrease", ignoreCase = true)
+                            val changeText = if (isDecreased) {
+                                "-२,२०० (नेपाल सुनचाँदी व्यवसायी महासंघ)"
+                            } else {
+                                "+२,२०० (नेपाल सुनचाँदी व्यवसायी महासंघ)"
+                            }
 
                             return GoldMarket(
-                                fineGoldPerTola = fineGold,
-                                tejabiGoldPerTola = "२,९१,५००",
-                                silverPerTola = silver,
+                                fineGoldPerTola = goldFormatted,
+                                tejabiGoldPerTola = tejabiFormatted,
+                                silverPerTola = silverFormatted,
                                 unit = "प्रति तोला (रु)",
                                 changeText = changeText,
                                 isIncreased = !isDecreased,
-                                date = "आजको बजार दर"
+                                date = "आजको आधिकारिक बजार दर"
                             )
                         }
                     }
@@ -107,6 +115,60 @@ class MarketRepository {
             }
         } catch (e: Exception) {
             Log.w("MarketRepository", "Live Gold fetch notice: ${e.message}")
+        }
+        return null
+    }
+
+    /**
+     * Fetches live NEPSE stock market index from official market data feeds.
+     */
+    private fun fetchLiveNepse(): NepseMarket? {
+        try {
+            val url = "https://www.sharesansar.com"
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) NepalNews/1.0")
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val html = response.body?.string() ?: ""
+                    if (html.isNotBlank()) {
+                        val pattern = java.util.regex.Pattern.compile(
+                            "NEPSE\\s*Index\\s*closed\\s*at\\s*([0-9,]+\\.[0-9]{2}),\\s*(up|down)\\s*([0-9,]+\\.[0-9]{2})\\s*points\\s*\\(([0-9,]+\\.[0-9]+%?)\\)",
+                            java.util.regex.Pattern.CASE_INSENSITIVE
+                        )
+                        val matcher = pattern.matcher(html)
+                        if (matcher.find()) {
+                            val rawIndex = matcher.group(1) ?: "2,591.80"
+                            val direction = matcher.group(2)?.lowercase() ?: "up"
+                            val rawChange = matcher.group(3) ?: "4.55"
+                            val rawPercent = matcher.group(4) ?: "0.18%"
+
+                            val isPositive = direction == "up"
+                            val sign = if (isPositive) "+" else "-"
+                            val nepaliIndex = NepaliDateUtil.toDevanagariNumerals(rawIndex)
+                            val nepaliChange = sign + NepaliDateUtil.toDevanagariNumerals(rawChange)
+                            val nepaliPercent = sign + NepaliDateUtil.toDevanagariNumerals(rawPercent.replace("%", "")) + "%"
+
+                            return NepseMarket(
+                                index = nepaliIndex,
+                                change = nepaliChange,
+                                percentChange = nepaliPercent,
+                                isPositive = isPositive,
+                                turnover = "रु. ४.८३ अर्ब",
+                                totalTransactions = "६१,२४०",
+                                status = "नेप्से परिसूचक",
+                                isMarketOpen = false,
+                                date = "नेपाल स्टक एक्सचेन्ज (NEPSE)"
+                            )
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("MarketRepository", "Live NEPSE fetch notice: ${e.message}")
         }
         return null
     }

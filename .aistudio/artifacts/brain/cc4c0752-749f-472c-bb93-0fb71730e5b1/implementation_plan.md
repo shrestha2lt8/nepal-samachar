@@ -1,53 +1,76 @@
-# Implementation Plan: Portal News Availability, First-Launch Skeleton Experience, and Reader Action Insets
+# Implementation Plan: In-App Article Return Navigation, Real News Images, Live Market Rates, and Play Store Graphics
 
-Address empty portal news feeds by auditing and updating feed endpoints/fallback web scrapers, replace the first-load "यस वर्गमा कुनै समाचार भेटिएन" empty state with an engaging animated shimmer loader and Nepali loading messaging, and lift the Reader screen's primary red action button above the device's navigation bar using proper `navigationBarsPadding`.
+Provide seamless return navigation when opening full articles, eliminate wrong/mismatched foreign stock images in favor of real publisher photos and authentic branded badges, ensure NEPSE, Gold, and Forex rates update with live data on refresh, and generate high-resolution phone and tablet screenshot assets for Google Play Store publication.
 
 ---
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> - **Portal Lineup Strategy**: Portals with active, verified live feeds (Ratopati, Setopati, Onlinekhabar, Baarahkhari, Nagarik News, Bizmandu, Sirius Nepal, Haatma, NV Khabar, Nagarik Sewa) will remain front-and-center. For major portals without standard RSS endpoints (such as Kantipur and Annapurna Post), we will deploy direct HTML article extractors so users see live reporting. Dead or unreachable domains will be gracefully retired to prevent empty portal feeds.
-> - **First-Launch UX**: When opening the app or switching filters while fetching, the UI will display a polished animated skeleton shimmer with `"ताजा समाचार संकलन गरिँदै छ..."` rather than showing the confusing `"यस वर्गमा कुनै समाचार भेटिएन"` ("No news found") banner.
-> - **Reader Action Insets**: In `ReaderScreen.kt`, the sticky bottom surface holding the primary red button will have `.navigationBarsPadding()` applied to guarantee full clearance above 3-button navigation bars (Back, Home, Recents) and gesture navigation pills on all Android devices.
+> - **In-App Article Return Navigation**: Instead of launching a raw `Intent.ACTION_VIEW` that ejects the user into an external browser without a way back, the app will use an **in-app Chrome Custom Tab** with brand theme colors (`NepalCrimson`), full gesture swipe-to-dismiss, and an explicit top-left Close/Back arrow (`X`) that immediately returns readers to the Nepal News reader and main feed.
+> - **Zero Mismatched Foreign Images**: Remove generic Unsplash stock photos (American sports stadiums, Wall Street skyscrapers, foreign hospitals) that previously caused mismatched photos on local Nepali stories. Prioritize real publisher photos extracted from `og:image` and article tags. When an article lacks an image, render a clean, high-fidelity publisher-branded badge with the portal's official brand color, typography, and newspaper emblem.
+> - **Live Financial Data on Refresh**:
+>   - **Forex**: Fully dynamic live exchange rates (USD, EUR, GBP, INR, etc.) pulled directly from the Nepal Rastra Bank (NRB) REST API.
+>   - **Gold & Silver**: Live Federation of Nepal Gold & Silver Dealers' Association (FENEGOSIDA) prices (छापावाल सुन, तेजाबी, र चाँदी) parsed dynamically without fragile hardcoded price prefix checks.
+>   - **NEPSE**: Live stock exchange index and point changes refreshed alongside news feeds.
+> - **Play Store Showcase Graphics**: Deliver publication-ready screenshots under `play_store_assets/` covering:
+>   - Phone: Home Feed (with AdMob & ticker), News Details Reader, and Live FM Radio Player.
+>   - Tablet: 7-inch and 10-inch layouts for Home, Reader, and Radio screens.
 
 ---
 
 ## 1. Overview & Core Concept
 
 - **What It Does**:
-  1. Ensures every selected news portal consistently returns real news stories.
-  2. Replaces premature "not found" zero-states on first load with animated news skeleton cards and informative Nepali status messaging.
-  3. Fixes edge-to-edge window insets in the article detail reader so the primary red redirect button is 100% visible and easily tappable above the phone's system navigation buttons.
-- **Target Audience**: Nepali readers accessing live national news on diverse Android devices with varying system navigation bars (gesture bar vs. 3-button bar).
+  1. Keeps users inside the Nepal News ecosystem with a dedicated in-app Chrome Custom Tab offering a 1-tap return button.
+  2. Ensures every news card and reader view displays either the publisher's authentic photo or an authentic Nepali source badge, never irrelevant foreign stock imagery.
+  3. Guarantees that pulling down to refresh updates NEPSE, Gold/Silver, and Foreign Currency rates with the latest market data.
+  4. Provides Google Play Store publication screenshot assets in phone and tablet viewports.
+- **Target Audience**: Nepali readers requiring accurate live reporting, real-time financial tracking, and continuous FM radio listening.
 
 ---
 
 ## 2. User Experience & Visual Design
 
-### First-Launch & Loading Experience (`HomeScreen.kt`)
-- When the app is launched and database cache is initializing or remote feeds are loading:
-  - Display 4 animated placeholder news card skeletons with subtle pulse/shimmer animation matching Material 3 surface tones.
-  - Display a branded status header:
-    - `"ताजा समाचार संकलन गरिँदै छ..."` (Gathering latest news...)
-    - Subtitle: `"नेपालका २०+ शीर्ष समाचार पोर्टलहरूबाट प्रत्यक्ष सामग्री प्राप्त गर्दै..."`
-  - Prevents the alarming "No news found" empty state from flashing before feeds have finished fetching.
-- True Empty State: Only rendered when `isRefreshing == false` and the filter yields zero matches, with a one-tap `"सबै समाचार हेर्नुहोस्"` button.
+### In-App Source Reader Flow (`ReaderScreen.kt`)
+- Tapping `"[स्रोत]मा पूरा समाचार पढ्नुहोस्"` launches an in-app Custom Tab with:
+  - Custom toolbar colored in `NepalCrimson` (`#C8102E`).
+  - Top-left Back button returning directly to the reader screen.
+  - Page title and domain display.
+  - Full hardware and gesture back navigation returning straight to Nepal News.
 
-### Reader Screen Bottom Navigation Inset (`ReaderScreen.kt`)
-- In `ReaderScreen.kt`, add `.navigationBarsPadding()` to the sticky bottom surface / row.
-- Ensure the red button (`NepalCrimson`) maintains its full 48dp touch target, rounded corners (12dp), and comfortable 12dp vertical padding safely above the Android system buttons.
+### Accurate Image Hierarchy (`NewsCard.kt`, `ReaderScreen.kt`, `NewsImageUtil.kt`)
+- **Primary**: Real image URL scraped from RSS `<enclosure>`, `<media:content>`, or the article's live OpenGraph `<meta property="og:image">`.
+- **Fallback**: Elegant, branded source cards (e.g. Kantipur blue, Ratopati crimson, Setopati navy, Bizmandu green) featuring the portal logo/name, category badge, and newspaper iconography. No generic foreign stock photos.
+
+### Live Financial Refresh
+- Pulling down to refresh on the Home screen initiates concurrent background jobs:
+  - Fresh news ingestion across all verified portals.
+  - NRB live foreign exchange rates.
+  - FENEGOSIDA gold and silver rates.
+  - NEPSE stock market index.
+- Ticker bar instantly updates with newly acquired figures.
+
+### Play Store Publication Graphics (`play_store_assets/`)
+- **Phone Screenshots (1080 × 1920 / 1080 × 2400)**:
+  1. `phone_screenshot_home.png` — Main feed, breaking ticker, market ribbon, category chips, and AdMob banner.
+  2. `phone_screenshot_reader.png` — Clean typography, Nepali Bikram Sambat date, font size scaler, and in-app return navigation.
+  3. `phone_screenshot_radio.png` — National FM Radio lineup (Radio Nepal, Kantipur, Ujyaalo, Sagarmatha, BBC) with live audio equalizer.
+- **Tablet Screenshots (1920 × 1200 / 1920 × 1080)**:
+  1. `tablet_screenshot_home.png` — Wide-screen multi-column responsive news layout.
+  2. `tablet_screenshot_reader.png` — Centered reading view with optimal line length.
+  3. `tablet_screenshot_radio.png` — Responsive grid of live radio stations and controls.
 
 ---
 
 ## 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1: Direct HTML Scrapers for Portals Lacking Working RSS**
-  - *Chosen Approach*: Deploy robust HTML article listing extractors for portals whose default `/feed` returns HTTP 404 (e.g. Kantipur, Annapurna Post, Naya Patrika).
-  - *Why*: Several leading Nepali news organizations don't maintain standard WordPress RSS feeds; direct HTML extraction guarantees users can read stories from their favorite portals without encountering blank screens.
-- **Decision 2: Clear Distinction Between Initial Loading vs. Empty Filter**
-  - *Chosen Approach*: Check `articles.isEmpty() && isRefreshing` (or `initialLoad`) in `HomeScreen.kt` to trigger the skeleton shimmer rather than the empty state container.
-  - *Why*: Dramatically improves perceived performance and avoids user confusion during the 1-2 seconds of initial network ingestion.
+- **Decision 1: Chrome Custom Tabs vs. Raw Browser vs. Full In-App WebView**
+  - *Chosen Approach*: Chrome Custom Tabs (`androidx.browser.customtabs.CustomTabsIntent`).
+  - *Why*: Provides the highest rendering fidelity, shared login cookies, automatic malware protection, and lightning-fast loading while maintaining a dedicated in-app toolbar with a prominent Back button that returns to Nepal News.
+- **Decision 2: Authentic Publisher Badges vs. Stock Photo Search**
+  - *Chosen Approach*: Use publisher-branded card badges for stories without official photos.
+  - *Why*: Eliminates context mismatch completely (e.g. foreign stadiums on Nepali cricket stories or foreign politicians on local news).
 
 ---
 
@@ -55,28 +78,29 @@ Address empty portal news feeds by auditing and updating feed endpoints/fallback
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│                      HomeScreen                        │
+│                      ReaderScreen                      │
 │                                                        │
-│  articles.isEmpty() && isRefreshing?                   │
-│  ├── YES ──▶ NewsSkeletonShimmer (4 cards + badge)     │
-│  └── NO  ──▶ LazyColumn with NewsCards & AdBanners     │
+│  User taps "पूरा समाचार पढ्नुहोस्"                      │
+│  └──▶ CustomTabsIntent.launchUrl(context, url)         │
+│        ├── Toolbar Color: NepalCrimson                 │
+│        └── Close Button ──▶ Returns to Nepal News      │
 └────────────────────────────────────────────────────────┘
 
 ┌────────────────────────────────────────────────────────┐
-│                     ReaderScreen                       │
+│                    MarketRepository                    │
 │                                                        │
-│  Scaffold(bottomBar = {                                │
-│    Surface(modifier = Modifier.navigationBarsPadding())│
-│      ├── Red Action Button (Safely above Back/Home)    │
-│  })                                                    │
+│  refreshMarkets()                                      │
+│  ├── fetchLiveNrbForex() ──▶ NRB API (22 currencies)   │
+│  ├── fetchLiveGoldRates()──▶ FENEGOSIDA live rates     │
+│  └── fetchNepseIndex()   ──▶ Sharesansar live index    │
 └────────────────────────────────────────────────────────┘
 
 ┌────────────────────────────────────────────────────────┐
-│                NepaliNewsDataSource                    │
+│                   Image Resolution                     │
 │                                                        │
-│  Verified RSS Feeds ──▶ FeedParser                     │
-│  Non-RSS Portals   ──▶ PortalHtmlScraper               │
-│                    ──▶ NewsRepository ──▶ Room Cache   │
+│  NewsArticle.imageUrl?                                 │
+│  ├── Present & Valid ──▶ Coil AsyncImage               │
+│  └── Absent / Failed ──▶ Branded Source Card Placeholder│
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -85,11 +109,11 @@ Address empty portal news feeds by auditing and updating feed endpoints/fallback
 ## Verification Plan
 
 ### Automated Tests
-- Run `gradle :app:testDebugUnitTest` to verify parser, scraper, and repository tests pass.
-- Verify Robolectric tests for first-load state rendering.
+- Run `gradle :app:testDebugUnitTest` to verify repository, parser, and financial market parsing.
+- Run `compile_applet` to ensure clean build.
 
 ### Manual Verification
-- Launch app with empty cache: verify animated skeleton shimmer and Nepali loading text appear instead of "यस वर्गमा कुनै समाचार भेटिएन".
-- Open every news portal tab: verify news cards populate without blank screens.
-- Open `ReaderScreen`: verify the red action button is fully visible above the system navigation bar with ample clearance.
-- Final applet compilation check via `compile_applet`.
+- Tap `"[स्रोत]मा पूरा समाचार पढ्नुहोस्"` in Reader view: verify in-app Custom Tab opens with top Back button returning directly to the app.
+- Check news cards: verify real news photos render, and articles without photos display clean publisher source cards without mismatched foreign stock imagery.
+- Pull down to refresh Home screen: verify NEPSE, gold, and forex rates update with live data.
+- Verify all generated Play Store screenshots under `play_store_assets/`.

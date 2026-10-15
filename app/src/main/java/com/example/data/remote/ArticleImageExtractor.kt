@@ -105,9 +105,9 @@ object ArticleImageExtractor {
 
     private fun isValidImageUrl(url: String?): Boolean {
         if (url.isNullOrBlank()) return false
-        val clean = url.lowercase()
+        val clean = url.lowercase().split('?')[0].split('#')[0]
         // Skip common tiny tracking pixels, avatars, or logos
-        if (clean.contains("logo") || clean.contains("icon") || clean.contains("avatar") || clean.contains("1x1")) {
+        if (clean.contains("logo") || clean.contains("icon") || clean.contains("avatar") || clean.contains("1x1") || clean.contains("blank.gif")) {
             return false
         }
         return clean.endsWith(".jpg") || clean.endsWith(".jpeg") || clean.endsWith(".png") ||

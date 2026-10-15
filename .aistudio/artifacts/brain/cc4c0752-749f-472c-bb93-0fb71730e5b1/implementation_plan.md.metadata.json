@@ -1,6 +1,6 @@
 {
-  "summary": "Implementation plan to fix portal news availability, implement an animated first-load skeleton experience with Nepali loading messaging, and lift the Reader screen's primary red action button above the device navigation bar.",
-  "updatedAt": "2026-10-14T10:35:21.089000474Z",
+  "summary": "Implementation plan to enable seamless in-app return navigation from source articles, eliminate wrong/mismatched foreign images with real publisher photo extraction and branded placeholders, ensure live updates for NEPSE, Gold, and Forex rates on refresh, and generate complete Play Store phone and tablet screenshot assets.",
+  "updatedAt": "2026-10-15T08:33:21.110815908Z",
   "requestFeedback": true,
   "userFacing": true
 }

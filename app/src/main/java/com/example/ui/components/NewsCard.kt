@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Newspaper
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -157,34 +158,53 @@ fun NewsCard(
                     }
                 }
 
-                // Thumbnail - Always rendered with reliable fallback
-                val displayImageUrl = com.example.util.NewsImageUtil.getEffectiveImageUrl(article)
-                Box(
-                    modifier = Modifier
-                        .size(92.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(article.source.brandColor.copy(alpha = 0.10f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = article.source.displayName.take(1),
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = article.source.brandColor.copy(alpha = 0.5f)
-                        )
-                    )
-
+                // Thumbnail - Authentic real photo or publisher branded badge
+                val realImageUrl = com.example.util.NewsImageUtil.getEffectiveImageUrl(article)
+                if (!realImageUrl.isNullOrBlank()) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
-                            .data(displayImageUrl)
+                            .data(realImageUrl)
                             .crossfade(true)
                             .build(),
                         contentDescription = article.title,
                         modifier = Modifier
                             .size(92.dp)
-                            .clip(RoundedCornerShape(12.dp)),
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(article.source.brandColor.copy(alpha = 0.10f)),
                         contentScale = ContentScale.Crop
                     )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(92.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(article.source.brandColor.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Newspaper,
+                                contentDescription = null,
+                                tint = article.source.brandColor,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(
+                                text = article.source.displayName,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = article.source.brandColor,
+                                    fontSize = 10.sp
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
             }
 
@@ -197,23 +217,18 @@ fun NewsCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 FilledTonalButton(
-                    onClick = {
-                        try {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(article.originalUrl))
-                            context.startActivity(intent)
-                        } catch (_: Exception) {}
-                    },
+                    onClick = onCardClick,
                     modifier = Modifier.testTag("open_source_btn_${article.id}"),
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                        contentDescription = "मूल स्रोत",
+                        contentDescription = "समाचार पढ्नुहोस्",
                         modifier = Modifier.size(15.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "मूल स्रोतमा पढ्नुहोस्",
+                        text = "विस्तृत पढ्नुहोस्",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
                     )
                 }

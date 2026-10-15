@@ -2,6 +2,9 @@ package com.example.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -10,13 +13,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,14 +31,19 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.FormatSize
+import androidx.compose.material.icons.filled.Newspaper
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -43,17 +53,21 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.data.model.NewsArticle
@@ -69,6 +83,16 @@ fun ReaderScreen(
     onBookmarkClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showInAppBrowser by remember { mutableStateOf(false) }
+
+    if (showInAppBrowser) {
+        InAppSourceWebScreen(
+            article = article,
+            onClose = { showInAppBrowser = false }
+        )
+        return
+    }
+
     // Hardware & Gesture back navigation handling
     BackHandler {
         onBackClick()
@@ -77,7 +101,7 @@ fun ReaderScreen(
     val context = LocalContext.current
     var fontSizeMultiplier by remember { mutableIntStateOf(1) } // 0: Normal, 1: Large, 2: Extra Large
     var liveSourceImage by remember(article.id) {
-        androidx.compose.runtime.mutableStateOf(article.imageUrl?.takeIf { it.startsWith("http") })
+        mutableStateOf(article.imageUrl?.takeIf { it.startsWith("http") })
     }
 
     androidx.compose.runtime.LaunchedEffect(article.id, article.originalUrl) {
@@ -175,7 +199,7 @@ fun ReaderScreen(
             )
         },
         bottomBar = {
-            // Sticky Bottom Bar with Primary Redirect Button
+            // Sticky Bottom Bar with Primary In-App Web Reader Button
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -184,29 +208,23 @@ fun ReaderScreen(
                 shadowElevation = 8.dp,
                 color = MaterialTheme.colorScheme.surface
             ) {
-                Row(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
                 ) {
-                    // Redirect button to the source site
                     Button(
                         onClick = {
                             if (!isOnline) {
                                 Toast.makeText(context, "इन्टरनेट छैन: मूल साइट खोल्न इन्टरनेट आवश्यक पर्दछ", Toast.LENGTH_SHORT).show()
                             } else {
-                                try {
-                                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(article.originalUrl))
-                                    context.startActivity(browserIntent)
-                                } catch (_: Exception) {}
+                                showInAppBrowser = true
                             }
                         },
                         modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp)
+                            .fillMaxWidth()
+                            .height(50.dp)
                             .testTag("reader_redirect_source_btn"),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = NepalCrimson
@@ -331,37 +349,84 @@ fun ReaderScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Hero Image - Prioritizes real source article image with brand fallback
+            // Hero Image - Real article photo or elegant authentic publisher badge
             val heroImageUrl = liveSourceImage ?: com.example.util.NewsImageUtil.getEffectiveImageUrl(article)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(230.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(article.source.brandColor.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
-            ) {
-                // Background branding fallback while loading
-                Text(
-                    text = article.source.displayName,
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = article.source.brandColor.copy(alpha = 0.5f)
-                    )
-                )
-
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(heroImageUrl)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = article.title,
+            if (!heroImageUrl.isNullOrBlank()) {
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(16.dp)),
-                    contentScale = ContentScale.Crop
-                )
+                        .fillMaxWidth()
+                        .height(230.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(article.source.brandColor.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(heroImageUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = article.title,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(16.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            } else {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = article.source.brandColor.copy(alpha = 0.10f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        article.source.brandColor.copy(alpha = 0.25f)
+                    )
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Surface(
+                                color = article.source.brandColor,
+                                shape = CircleShape,
+                                modifier = Modifier.size(54.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Newspaper,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = article.source.displayName,
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = article.source.brandColor
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "आधिकारिक डिजिटल समाचार • ${article.category.displayName}",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        }
+                    }
+                }
             }
+
             Spacer(modifier = Modifier.height(18.dp))
 
             // Lead summary / callout box
@@ -425,6 +490,163 @@ fun ReaderScreen(
             }
 
             Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
+
+/**
+ * Dedicated In-App Web Viewer providing seamless article reading without leaving Nepal News.
+ * Features a persistent return navigation button ("फर्कनुहोस्") returning directly to the clean reader.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InAppSourceWebScreen(
+    article: NewsArticle,
+    onClose: () -> Unit
+) {
+    val context = LocalContext.current
+    var webViewInstance by remember { mutableStateOf<WebView?>(null) }
+    var pageProgress by remember { mutableIntStateOf(0) }
+    var pageTitle by remember { mutableStateOf(article.source.displayName) }
+
+    BackHandler {
+        if (webViewInstance?.canGoBack() == true) {
+            webViewInstance?.goBack()
+        } else {
+            onClose()
+        }
+    }
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        topBar = {
+            TopAppBar(
+                navigationIcon = {
+                    FilledTonalButton(
+                        onClick = onClose,
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .testTag("in_app_browser_back_btn"),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = NepalCrimson,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "नेपाल समाचारमा फर्कनुहोस्",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "फर्कनुहोस्",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                },
+                title = {
+                    Column(modifier = Modifier.padding(start = 4.dp)) {
+                        Text(
+                            text = article.source.displayName,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = article.originalUrl.replace(Regex("^https?://(www\\.)?"), "").take(28),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 11.sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = { webViewInstance?.reload() },
+                        modifier = Modifier.testTag("in_app_browser_reload_btn")
+                    ) {
+                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "पुनः लोड")
+                    }
+                    IconButton(
+                        onClick = {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(article.originalUrl))
+                                context.startActivity(intent)
+                            } catch (_: Exception) {}
+                        },
+                        modifier = Modifier.testTag("in_app_browser_external_btn")
+                    ) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "बाह्य ब्राउजरमा खोल्नुहोस्")
+                    }
+                    IconButton(
+                        onClick = onClose,
+                        modifier = Modifier.testTag("in_app_browser_close_btn")
+                    ) {
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "बन्द गर्नुहोस्")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            if (pageProgress in 1..99) {
+                LinearProgressIndicator(
+                    progress = { pageProgress / 100f },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = NepalCrimson
+                )
+            }
+            AndroidView(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("in_app_webview"),
+                factory = { ctx ->
+                    WebView(ctx).apply {
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.loadWithOverviewMode = true
+                        settings.useWideViewPort = true
+                        settings.builtInZoomControls = true
+                        settings.displayZoomControls = false
+                        webViewClient = object : WebViewClient() {
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                super.onPageFinished(view, url)
+                                view?.title?.let { if (it.isNotBlank()) pageTitle = it }
+                            }
+                        }
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                                pageProgress = newProgress
+                            }
+                        }
+                        loadUrl(article.originalUrl)
+                        webViewInstance = this
+                    }
+                },
+                update = {
+                    webViewInstance = it
+                },
+                onRelease = { webView ->
+                    try {
+                        webView.stopLoading()
+                        webView.clearHistory()
+                        webView.removeAllViews()
+                        webView.destroy()
+                    } catch (_: Exception) {}
+                }
+            )
         }
     }
 }
